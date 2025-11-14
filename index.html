@@ -997,6 +997,7 @@
                 this.lastState = null; // 用于比较状态
                 this.localPlayerId = null;
                 this.highlightCards = new Set();
+                this.spectateAcknowledged = false;
                 
                 // 绑定加注滑块
                 document.getElementById('raise-slider').oninput = () => {
@@ -1140,13 +1141,9 @@
                     if (isChampion) {
                         // Game just finished, and I am the champion.
                         this.showGameOver(true, true, localPlayer); // (isWin, isGameFinished, player)
-                    } else if (isEliminated && state.status === 'playing') {
-                        // *** 用户修改: 玩家破产，但游戏继续 -> 直接观战 ***
+                    } else if (isEliminated && state.status === 'playing' && !this.spectateAcknowledged) {
                         // Game is ongoing, but I am out.
-                        // this.showGameOver(false, false, localPlayer); // (旧逻辑: 显示破产界面)
-                        this.sound.playLose(); // 播放破产音效
-                        this.spectate(false);  // (新逻辑: 直接观战)
-                        // *** 结束修改 ***
+                        this.showGameOver(false, false, localPlayer); // (isWin=false, isGameFinished=false, player)
                     } else if (isEliminated && state.status === 'waiting') {
                          // Game finished, but I lost earlier.
                          this.showGameOver(false, true, localPlayer); // (isWin=false, isGameFinished=true, player)
@@ -1168,6 +1165,7 @@
                                 if (!screen.classList.contains('hidden')) {
                                     screen.classList.add('hidden');
                                     this.showMessage("游戏结束，等待房主重新开始...");
+                                    this.spectateAcknowledged = false;
                                 }
                             }, 4000); // 延迟4秒隐藏
                         }
@@ -1482,6 +1480,7 @@
 
             // *** 修复: (请求 #4) 修正函数位置，移到 GameUIManager 内部 ***
             spectate(isGameFinished) {
+                this.spectateAcknowledged = true;
                 document.getElementById('game-over-screen').classList.add('hidden');
                 if (isGameFinished) {
                     this.showMessage("游戏已结束。等待房主重新开始...");
@@ -1820,6 +1819,8 @@
                 this.currentRoomId = null;
                 if (this.nextRoundTimeout) clearTimeout(this.nextRoundTimeout);
                 if (this.nextPhaseTimeout) clearTimeout(this.nextPhaseTimeout); // *** 新增: 清除计时器 ***
+                
+                this.gameUI.spectateAcknowledged = false;
                 
                 document.getElementById('game-area').classList.add('hidden');
                 document.getElementById('game-over-screen').classList.add('hidden');
@@ -2254,7 +2255,7 @@
                 // 7. 两对
                 if (pairs.length >= 2) { 
                     const p1 = pairs[0]; const p2 = pairs[1]; 
-                    const pair1Cards = all.filter(c => c.value === p1).slice(0,2); // .filter().slice() GljGhlc291bmQu" 保持了 'isHole' 排序
+                    const pair1Cards = all.filter(c => c.value === p1).slice(0,2); // .filter().slice() 保持了 'isHole' 排序
                     const pair2Cards = all.filter(c => c.value === p2).slice(0,2); // .filter().slice() 保持了 'isHole' 排序
                     const kicker = getKickers([...pair1Cards, ...pair2Cards], 1); // getKickers 保持了 'isHole' 排序
                     return { score: calcScore(3, [pair1Cards[0], pair2Cards[0]], kicker), name: "两对", bestCards: [...pair1Cards, ...pair2Cards, ...kicker] }; 
