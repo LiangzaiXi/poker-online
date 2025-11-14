@@ -997,7 +997,6 @@
                 this.lastState = null; // 用于比较状态
                 this.localPlayerId = null;
                 this.highlightCards = new Set();
-                this.spectateAcknowledged = false;
                 
                 // 绑定加注滑块
                 document.getElementById('raise-slider').oninput = () => {
@@ -1087,19 +1086,6 @@
                 this.lastState = state; // 现在才更新 lastState
                 this.localPlayerId = localId;
                 const localPlayer = state.players[localId];
-
-                // *** 2. 添加以下 8 行新逻辑 ***
-                if (!localPlayer) return; // 玩家数据可能尚未加载
-
-                // 检查玩家是否被淘汰
-                const isEliminated = (localPlayer.status === '淘汰' && localPlayer.chips === 0);
-
-                // 自动重置逻辑：
-                // 如果玩家不再是"淘汰"状态 (例如新一局开始，筹码已重置)
-                // 那么我们就自动重置"已确认观战"的标记
-                if (!isEliminated) {
-                    this.spectateAcknowledged = false;
-                }
                 
                 // 1. 更新顶部信息
                 document.getElementById('pot-display').innerText = state.pot;
@@ -1154,7 +1140,7 @@
                     if (isChampion) {
                         // Game just finished, and I am the champion.
                         this.showGameOver(true, true, localPlayer); // (isWin, isGameFinished, player)
-                    } else if (isEliminated && state.status === 'playing' && !this.spectateAcknowledged) {
+                    } else if (isEliminated && state.status === 'playing') {
                         // Game is ongoing, but I am out.
                         this.showGameOver(false, false, localPlayer); // (isWin=false, isGameFinished=false, player)
                     } else if (isEliminated && state.status === 'waiting') {
@@ -1492,7 +1478,6 @@
 
             // *** 修复: (请求 #4) 修正函数位置，移到 GameUIManager 内部 ***
             spectate(isGameFinished) {
-                this.spectateAcknowledged = true;
                 document.getElementById('game-over-screen').classList.add('hidden');
                 if (isGameFinished) {
                     this.showMessage("游戏已结束。等待房主重新开始...");
