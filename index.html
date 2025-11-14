@@ -1087,6 +1087,19 @@
                 this.lastState = state; // 现在才更新 lastState
                 this.localPlayerId = localId;
                 const localPlayer = state.players[localId];
+
+                // *** 2. 添加以下 8 行新逻辑 ***
+                if (!localPlayer) return; // 玩家数据可能尚未加载
+
+                // 检查玩家是否被淘汰
+                const isEliminated = (localPlayer.status === '淘汰' && localPlayer.chips === 0);
+
+                // 自动重置逻辑：
+                // 如果玩家不再是"淘汰"状态 (例如新一局开始，筹码已重置)
+                // 那么我们就自动重置"已确认观战"的标记
+                if (!isEliminated) {
+                    this.spectateAcknowledged = false;
+                }
                 
                 // 1. 更新顶部信息
                 document.getElementById('pot-display').innerText = state.pot;
@@ -1165,7 +1178,6 @@
                                 if (!screen.classList.contains('hidden')) {
                                     screen.classList.add('hidden');
                                     this.showMessage("游戏结束，等待房主重新开始...");
-                                    this.spectateAcknowledged = false;
                                 }
                             }, 4000); // 延迟4秒隐藏
                         }
@@ -1819,8 +1831,6 @@
                 this.currentRoomId = null;
                 if (this.nextRoundTimeout) clearTimeout(this.nextRoundTimeout);
                 if (this.nextPhaseTimeout) clearTimeout(this.nextPhaseTimeout); // *** 新增: 清除计时器 ***
-                
-                this.gameUI.spectateAcknowledged = false;
                 
                 document.getElementById('game-area').classList.add('hidden');
                 document.getElementById('game-over-screen').classList.add('hidden');
