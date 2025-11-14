@@ -1150,14 +1150,15 @@
             });
 
             // 4b. 找出所有不同的下注额 (边池级别)
-            // *** 修复: 必须从 allPlayers (包括已弃牌) 中获取 betLevels ***
             // *** (还原为 读博.html 逻辑) ***
             let distinctBets = [
-              ...new Set(allPlayers.map((p) => p.accumulatedBet)),
-            ].sort((a, b) => a - b);
-            
+              ...new Set(activePlayers.map((p) => p.accumulatedBet)), // *** 修复: 必须使用 activePlayers, 而不是 allPlayers ***
+            ]
+              .filter((bet) => bet > 0) // (保留) 移除 0 赌注
+              .sort((a, b) => a - b);
+
             // (不再需要 0 级别, 读博.html 的逻辑是从 prevBet=0 开始)
-            
+
             let winnerLogs = [];
             newState.highlightCards = new Set(); // 用于高亮获胜卡牌
 
