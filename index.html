@@ -905,7 +905,7 @@
           newState.phase !== "showdown"
         ) {
           // 所有人都跟了, 且只有0或1个玩家还有筹码
-          newState.logs.push("--- 多人All-in, 自动发牌 ---");
+          // newState.logs.push("--- 多人All-in, 自动发牌 ---");
           newState = runAutoShowdown(newState);
         }
         // --- 检查2: 是否进入下一阶段 ---
@@ -3113,3 +3113,4 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
