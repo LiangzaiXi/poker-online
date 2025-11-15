@@ -2319,7 +2319,7 @@
           }
         }
 
-        // --- 退出房间 ---
+// --- 退出房间 (已修改: 增加人数不足自动结束逻辑) ---
         async leaveRoom() {
           if (this.unsubscribeRoom) {
             this.unsubscribeRoom(); // 停止监听
@@ -2346,27 +2346,56 @@
                   state.playerOrder = state.playerOrder.filter(
                     (uid) => uid !== userId
                   );
-                  state.logs.push(`${playerName} 离开了房间.`); // 使用
+                  state.logs.push(`${playerName} 离开了房间.`); 
                 }
 
                 // 2. 检查是否需要删除房间
                 if (state.playerOrder.length === 0) {
                   transaction.delete(roomRef);
                   console.log("房间空了，自动删除");
+                  return; // 直接结束事务
                 }
+
+                // *** 新增: 如果游戏中人数不足2人，强制结束游戏并重置 ***
+                if (state.status === 'playing' && state.playerOrder.length < 2) {
+                    state.status = 'waiting'; // 回到等待状态
+                    state.phase = 'waiting';
+                    state.pot = 0;
+                    state.communityCards = [];
+                    state.currentMaxBet = 0;
+                    state.currentPlayerIndex = -1;
+                    state.dealerIndex = 0;
+                    state.logs.push("--- 玩家人数不足，游戏强制结束，返回大厅 ---");
+                    state.highlightWinner = null;
+                    state.highlightCards = [];
+                    state.nextRoundTimer = 0;
+                    state.nextPhaseTimer = 0;
+
+                    // 重置剩余玩家的状态 (恢复初始筹码)
+                    state.playerOrder.forEach(uid => {
+                        if(state.players[uid]) {
+                            state.players[uid].chips = 1000; // 重置为初始筹码
+                            state.players[uid].holeCards = [];
+                            state.players[uid].folded = false;
+                            state.players[uid].currentBet = 0;
+                            state.players[uid].accumulatedBet = 0;
+                            state.players[uid].status = "等待中";
+                            state.players[uid].bestHand = null;
+                        }
+                    });
+                }
+
                 // 3. 检查房主是否离开
-                else if (state.hostId === userId) {
+                if (state.hostId === userId) {
                   // 移交房主给下一个人
                   state.hostId = state.playerOrder[0];
                   state.logs.push(
                     `房主移交给 ${state.players[state.hostId].name}.`
                   );
-                  transaction.set(roomRef, state);
                 }
-                // 4. 正常离开
-                else {
-                  transaction.set(roomRef, state);
-                }
+                
+                // 4. 保存状态
+                transaction.set(roomRef, state);
               });
             } catch (error) {
               console.error("离开房间时出错:", error);
@@ -2376,9 +2405,9 @@
           // 重置 UI
           this.currentRoomId = null;
           if (this.nextRoundTimeout) clearTimeout(this.nextRoundTimeout);
-          if (this.nextPhaseTimeout) clearTimeout(this.nextPhaseTimeout); // *** 新增: 清除计时器 ***
+          if (this.nextPhaseTimeout) clearTimeout(this.nextPhaseTimeout);
 
-          // *** 新增: 重置破产标志 (请求 #12) ***
+          // 重置破产标志
           this.gameUI.bankruptcyScreenShown = false;
 
           document.getElementById("game-area").classList.add("hidden");
@@ -3133,5 +3162,6 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
