@@ -2098,43 +2098,40 @@
           }
         }
 
-        // *** 修复: 强制刷新按钮状态，解决“点不动”的 Bug ***
+        // *** 修复: 动态重绘按钮，彻底解决状态卡死 ***
         updateWaitingRoomUI(state, localId) {
           const hostControls = document.getElementById("wait-host-controls");
-          const btnStartGame = document.getElementById("btn-start-game");
           const waitMessage = document.getElementById("wait-message");
-
           const playerCount = state.playerOrder.length;
-
-          // 调试日志：按 F12 看控制台，确认 JS 是否在运行
-          console.log(`更新等待界面: 房主=${state.hostId}, 我=${localId}, 人数=${playerCount}`);
 
           if (state.hostId === localId) {
             // 我是房主
             hostControls.classList.remove("hidden");
-            
+
             if (playerCount < 2) {
-              // --- 人数不足：强制禁用 ---
-              btnStartGame.disabled = true;
-              // 手动添加灰色样式 (以防 disabled 属性不生效)
-              btnStartGame.classList.add("opacity-50", "cursor-not-allowed");
-              
-              btnStartGame.innerText = `等待玩家 (${playerCount}/10)`;
+              // --- 人数不足 (渲染灰色按钮) ---
+              hostControls.innerHTML = `
+                <button disabled class="bg-gray-500 text-gray-300 font-black text-2xl py-4 px-12 rounded-full shadow-none border-b-4 border-gray-700 cursor-not-allowed opacity-50">
+                  等待玩家 (${playerCount}/10)
+                </button>
+              `;
               waitMessage.innerText = "至少需要 2 人才能开始...";
             } else {
-              // --- 人数足够：强制激活 ---
-              btnStartGame.disabled = false;
-              btnStartGame.removeAttribute("disabled"); // 双重保险：彻底移除属性
-              
-              // 手动移除灰色样式
-              btnStartGame.classList.remove("opacity-50", "cursor-not-allowed");
-              
-              btnStartGame.innerText = "开始游戏";
+              // --- 人数足够 (渲染红色按钮，强制刷新 DOM) ---
+              hostControls.innerHTML = `
+                <button 
+                  id="btn-start-game"
+                  onclick="network.startGame()" 
+                  class="bg-red-600 hover:bg-red-500 text-white font-black text-2xl py-4 px-12 rounded-full shadow-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all">
+                  开始游戏
+                </button>
+              `;
               waitMessage.innerText = `当前人数: ${playerCount}人 (点击按钮开始)`;
             }
           } else {
             // 我是普通玩家
             hostControls.classList.add("hidden");
+            hostControls.innerHTML = ""; // 清空按钮
             const hostPlayer = state.players[state.hostId];
             const hostName = hostPlayer ? hostPlayer.name : "房主";
             waitMessage.innerText = `等待 ${hostName} 开始游戏 (${playerCount}人已准备)...`;
@@ -2322,7 +2319,7 @@
           }
         }
 
-// --- 退出房间 (已修改: 增加人数不足自动结束逻辑) ---
+        // --- 退出房间 (已修改: 增加人数不足自动结束逻辑) ---
         async leaveRoom() {
           if (this.unsubscribeRoom) {
             this.unsubscribeRoom(); // 停止监听
@@ -2509,35 +2506,48 @@
           // 3. 移除了 AI 行动检查
         }
 
-        // --- 房主开始游戏 ---
+        // --- 房主开始游戏 (已修复: 移除旧的类名检查) ---
         async startGame() {
-          if (
-            !this.currentRoomId ||
-            this.localUserId !== this.gameUI.lastState.hostId
-          )
-            return;
+          if (!this.currentRoomId || !this.gameUI.lastState) return;
+          
+          // 再次检查权限 (防止黑客直接调用控制台)
+          if (this.localUserId !== this.gameUI.lastState.hostId) return;
 
           const btn = document.getElementById("btn-start-game");
-          if (btn.classList.contains("btn-disabled")) return;
+          
+          // *** 关键修改: 不再检查 classList，只检查 state ***
+          // 如果按钮不存在(被替换成了灰色按钮)或者人数不足，直接返回
+          if (!btn || this.gameUI.lastState.playerOrder.length < 2) {
+              console.warn("无法开始：人数不足或按钮不可用");
+              return;
+          }
 
-          btn.classList.add("btn-disabled");
+          // 视觉反馈：点击后暂时禁用，防止连点
+          btn.disabled = true;
+          btn.innerText = "启动中...";
 
           const roomRef = this.getRoomRef(this.currentRoomId);
           try {
-            const currentState = this.gameUI.lastState; // 使用本地的最新状态
+            const currentState = this.gameUI.lastState;
             if (currentState.status !== "waiting") return;
 
             // 1. 标记游戏开始
             currentState.status = "playing";
 
-            // 2. 调用新回合逻辑
+            // 2. 调用新回合逻辑 (确保使用全局函数 startNewRound)
+            // 注意: 这里的 startNewRound 必须是之前定义的那个全局函数
             const nextState = startNewRound(currentState);
 
             // 3. 写入 Firestore
             await setDoc(roomRef, nextState);
+            
+            console.log("游戏启动指令已发送");
           } catch (error) {
             console.error("开始游戏失败:", error);
-            btn.classList.remove("btn-disabled");
+            // 失败恢复
+            btn.disabled = false;
+            btn.innerText = "开始游戏";
+            this.gameUI.showMessage("启动失败，请重试");
           }
         }
 
@@ -3165,6 +3175,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
