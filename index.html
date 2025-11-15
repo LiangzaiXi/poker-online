@@ -828,8 +828,8 @@
 
           player.status = isAllIn ? "全押" : "加注";
           logMsg = `${player.name} ${
-            isAllIn ? "全押" : "加注到"
-          } $${actualAmount}`;
+            isAllIn ? "全押" : "加注"
+          } $${raiseAmount}`;
 
           if (!isAllIn) {
             // *** 移除: sound.playRaise() (请求 #1) ***
@@ -1477,7 +1477,7 @@
               this.sound.playCheck();
             } else if (newLog.includes("跟注")) {
               this.sound.playChip();
-            } else if (newLog.includes("加注到")) {
+            } else if (newLog.includes("加注")) {
               this.sound.playRaise();
             }
             // All-in sound is handled by showAllInEffect
@@ -1966,12 +1966,14 @@
             bar.className = "all-in-bar";
             const text = document.createElement("div");
             text.className = "all-in-text";
-            // *** 修改: 移除 playerName (请求 #2) ***
+            
             text.innerText = `ALL-IN`;
             bar.appendChild(text);
             overlay.appendChild(bar);
             document.body.appendChild(overlay);
+            
             this.sound.playAllIn();
+            
             setTimeout(() => {
               overlay.style.transition = "opacity 0.3s";
               overlay.style.opacity = "0";
@@ -1979,8 +1981,7 @@
                 overlay.remove();
                 resolve();
               }, 300);
-            }, 2500);
-          });
+            }, 1250);
         }
 
         // --- 游戏结束 ---
@@ -2595,7 +2596,6 @@
 
               if (action === "raise") {
                 // 这里的逻辑取决于你之前的 processAction 实现
-                // 如果是“加注到”模式：
                 totalAmount = player.currentBet + actionAmount; 
                 // 注意：请确保这里计算的 totalAmount 符合你 processAction 的要求
                 // 如果 actionAmount 已经是总额（slider.value），则直接 totalAmount = actionAmount;
@@ -3175,6 +3175,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
