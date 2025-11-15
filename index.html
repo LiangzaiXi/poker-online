@@ -905,7 +905,7 @@
           newState.phase !== "showdown"
         ) {
           // 所有人都跟了, 且只有0或1个玩家还有筹码
-          // newState.logs.push("--- 多人All-in, 自动发牌 ---");
+          newState.logs.push("--- 多人All-in, 自动发牌 ---");
           newState = runAutoShowdown(newState);
         }
         // --- 检查2: 是否进入下一阶段 ---
@@ -1100,29 +1100,26 @@
 
       // --- 游戏逻辑：摊牌或结算 ---
       function advanceToShowdown(currentState, soleWinner = null) {
-        let newState = JSON.parse(JSON.stringify(currentState));
+        let newState = JSON.parse(JSON.stringify(currentState)); // *** 修复: 必须克隆 ***
         newState.phase = "showdown";
         newState.currentPlayerIndex = -1; // 停止行动
 
-        // 1. 结算最后一轮下注
-        let finalPot = 0;
-        newState.playerOrder.forEach((uid) => {
-          const p = newState.players[uid];
-          if (!soleWinner) {
-            // 只有在多人摊牌时才结算
-            p.accumulatedBet += p.currentBet;
-          }
-          finalPot += p.accumulatedBet; // 累加总底池
-          p.currentBet = 0;
-        });
-        newState.pot = finalPot; // 确保底池金额正确
+        // 1. 结算最后一轮下注 (不再需要, pot 在 processAction 中已更新)
+        // let finalPot = 0; ... (旧的错误逻辑已移除)
 
-        // 2. 退还多余的下注 (如果需要)
-        // (此逻辑已在下面的 4c. 边池计算中自动处理)
+        // 2. 退还多余的下注 (不再需要, 已在 advanceToNextPhase 中处理)
 
         // 3. 情况A: 只有一个赢家 (其他人都弃牌了)
         if (soleWinner) {
           const winnerPlayer = newState.players[soleWinner.uid];
+
+          // *** 修复: 不再重新计算底池 ***
+          // `newState.pot` 已经是正确的了 (来自 processAction)
+          // 我们只需要清空桌上的 'currentBet'
+          newState.playerOrder.forEach((uid) => {
+            newState.players[uid].currentBet = 0;
+          });
+
           winnerPlayer.chips += newState.pot;
           newState.logs.push(
             `--- ${winnerPlayer.name} 获胜, 赢得 $${newState.pot} ---`
@@ -1131,6 +1128,18 @@
         }
         // 4. 情况B: 多人摊牌 (*** 升级: 完整的边池计算逻辑 ***)
         else {
+          // *** 修复: 将 'currentBet' 移入 'accumulatedBet' 的逻辑移到这里 ***
+          let finalPot = 0;
+          newState.playerOrder.forEach((uid) => {
+            const p = newState.players[uid];
+            // if (!soleWinner) 总是 true
+            p.accumulatedBet += p.currentBet;
+            finalPot += p.accumulatedBet; // 累加总底池
+            p.currentBet = 0;
+          });
+          newState.pot = finalPot; // 确保底池金额正确
+          // *** 修复结束 ***
+
           // *** 修复: 必须先获取所有玩家, 再筛选 activePlayers ***
           const allPlayers = newState.playerOrder.map(
             (uid) => newState.players[uid]
@@ -3113,4 +3122,3 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
-
