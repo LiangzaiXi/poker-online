@@ -1737,7 +1737,13 @@
             // --- 渲染手牌 ---
             let cardsHTML = "";
             if (!p.folded && p.holeCards && p.holeCards.length > 0) {
-              if (p.uid === localId || state.phase === "showdown") {
+              
+              // *** 修复: 计算当前存活(未弃牌)的玩家数量 ***
+              const activePlayersCount = Object.values(state.players).filter(player => !player.folded).length;
+
+              // *** 修复: 只有是自己，或者 (是摊牌阶段 且 存活玩家大于1人) 时才显示正面 ***
+              // 这样如果是唯一赢家(其他人全弃牌)，activePlayersCount 为 1，别人就看不到赢家的牌了
+              if (p.uid === localId || (state.phase === "showdown" && activePlayersCount > 1)) {
                 cardsHTML = p.holeCards
                   .map((c) => this.createCardEl(c).outerHTML)
                   .join("");
@@ -3143,6 +3149,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
