@@ -2128,7 +2128,7 @@
                   开始游戏
                 </button>
               `;
-              waitMessage.innerText = `当前人数: ${playerCount}人 (点击按钮开始)`;
+              waitMessage.innerText = `当前人数: ${playerCount}人`;
             }
           } else {
             // 我是普通玩家
@@ -2136,7 +2136,7 @@
             hostControls.innerHTML = ""; // 清空按钮
             const hostPlayer = state.players[state.hostId];
             const hostName = hostPlayer ? hostPlayer.name : "房主";
-            waitMessage.innerText = `等待 ${hostName} 开始游戏 (${playerCount}人已准备)...`;
+            waitMessage.innerText = `等待 ${hostName} 开始游戏`;
           }
         }
 
@@ -3176,6 +3176,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
