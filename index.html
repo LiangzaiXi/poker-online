@@ -573,19 +573,25 @@
         </div>
       </div>
 
-      <!-- *** 新增: 等待室遮罩 (用于显示玩家列表和 AI 控制) *** -->
-<div
+      <div
         id="waiting-room-overlay"
         class="hidden absolute top-0 left-0 w-full h-full z-40 flex flex-col items-center justify-center pointer-events-none"
       >
-        <div id="wait-host-controls" class="hidden pointer-events-auto transition-transform duration-300 hover:scale-105">
-          <button
-            id="btn-start-game"
-            onclick="network.startGame()"
-            class="bg-red-600 hover:bg-red-500 text-white font-black text-2xl py-4 px-12 rounded-full shadow-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:active:border-b-4"
-          >
-            开始游戏
-          </button>
+      <div id="wait-host-controls" class="hidden pointer-events-auto flex flex-col items-center gap-4 transition-transform duration-300">
+          
+            <div id="host-settings-panel" class="bg-gray-800/80 p-4 rounded-lg border border-gray-600 w-64 backdrop-blur-sm shadow-lg">
+              <div class="mb-3">
+                <label class="block text-yellow-500 text-xs font-bold mb-1">初始筹码 (整数)</label>
+                <input type="number" id="setting-initial-chips" value="2000" step="100" class="w-full bg-gray-900 text-white border border-gray-600 rounded px-2 py-1 text-sm focus:border-yellow-500 outline-none font-mono">
+              </div>
+              <div>
+                <label class="block text-yellow-500 text-xs font-bold mb-1">大盲注 (偶数 > 1)</label>
+                <input type="number" id="setting-big-blind" value="20" step="2" min="2" class="w-full bg-gray-900 text-white border border-gray-600 rounded px-2 py-1 text-sm focus:border-yellow-500 outline-none font-mono">
+                <p class="text-gray-400 text-[10px] mt-1 text-right">小盲注自动设为: <span id="setting-sb-display" class="text-white font-bold">10</span></p>
+              </div>
+            </div>
+        
+            <div id="host-start-btn-container"></div>
         </div>
 
         <p 
@@ -666,8 +672,6 @@
         river: "河牌",
         showdown: "摊牌",
       };
-      const SMALL_BLIND = 10;
-      const BIG_BLIND = 20;
 
       // --- 移除: AI 姓名库 ---
 
@@ -710,6 +714,7 @@
       function processAction(currentState, actingUserId, action, amount = 0) {
         // 复制一份新状态，避免修改原状态
         let newState = JSON.parse(JSON.stringify(currentState));
+        const config = newState.config || { bigBlind: 20 };
         let player = newState.players[actingUserId];
 
         // 1. 检查是否轮到该玩家
@@ -868,7 +873,7 @@
             if (isAllIn) return true; // All-in 玩家被视为 "已完成"
             
             // 检查大盲注 'option'
-            if (newState.phase === 'preflop' && newState.currentMaxBet === BIG_BLIND) {
+            if (newState.phase === 'preflop' && newState.currentMaxBet === config.bigBlind) {
                 const bbIndex = (newState.dealerIndex + 2) % newState.playerOrder.length;
                 const bbPlayerId = newState.playerOrder[bbIndex];
                 if (p.uid === bbPlayerId && !hasActed) {
@@ -937,7 +942,8 @@
       function advanceToNextPhase(currentState) {
         let newState = JSON.parse(JSON.stringify(currentState));
 
-        // --- 新增: 立即退还多余的下注 (来自 读博.html) ---
+        const config = newState.config || { bigBlind: 20 };
+        // --- 新增: 立即退还多余的下注 ---
         newState = returnExcessBets(newState);
         // --- 结束新增 ---
 
@@ -953,7 +959,7 @@
 
         // 2. 重置下注状态
         newState.currentMaxBet = 0;
-        newState.lastRaiseAmount = BIG_BLIND; // 重置最小加注额
+        newState.lastRaiseAmount = config.bigBlind; // 重置最小加注额
         newState.playersActed = [];
 
         // 3. 推进阶段
@@ -1246,13 +1252,20 @@
         return newState;
       }
 
-      // --- 游戏逻辑：房主开始新回合 ---
+// --- 游戏逻辑：房主开始新回合 ---
       function startNewRound(currentState) {
         let newState = JSON.parse(JSON.stringify(currentState));
 
+        // *** 修改 1: 获取配置 (如果有)，否则使用默认值 ***
+        const config = newState.config || {
+          initialChips: 2000,
+          smallBlind: 10,
+          bigBlind: 20
+        };
+        // *** 结束修改 ***
+
         // 1. 淘汰筹码为 0 的玩家
         let activePlayerIds = [];
-        // *** 修改: 需要一个所有玩家的列表 ***
         const allPlayerIds = Object.keys(newState.players); // 获取所有玩家ID
 
         allPlayerIds.forEach((uid) => {
@@ -1263,33 +1276,25 @@
             newState.players[uid].status = "淘汰";
           }
         });
-        // *** 临时更新 playerOrder 用于检查 ***
-        const activePlayerOrder = activePlayerIds;
 
-        // 2. 检查游戏是否结束
-        // *** 修改: (请求 #1) 游戏结束后重置房间 ***
-        if (activePlayerOrder.length < 2) {
-          const winnerId =
-            activePlayerOrder.length > 0 ? activePlayerOrder[0] : null;
-          const winnerName = winnerId
-            ? newState.players[winnerId].name
-            : "无人";
+        // 2. 检查游戏是否结束 (只剩1人或0人)
+        if (activePlayerIds.length < 2) {
+          const winnerId = activePlayerIds.length > 0 ? activePlayerIds[0] : null;
+          const winnerName = winnerId ? newState.players[winnerId].name : "无人";
 
-          let newLogs = [...newState.logs]; // 复制日志
+          let newLogs = [...newState.logs];
           newLogs.push(`--- 游戏结束! ${winnerName} 获胜! ---`);
           newLogs.push("--- 房间已重置, 等待房主重新开始 ---");
           if (newLogs.length > 20) newLogs = newLogs.slice(newLogs.length - 20);
 
-          // *** 新增: 游戏结束后重置为等待室状态 ***
+          // *** 修改 2: 游戏结束后，重置筹码为配置的初始值 ***
           const resetPlayers = {};
-          // *** 使用 allPlayerIds 遍历 ***
           allPlayerIds.forEach((uid) => {
             const p = newState.players[uid];
             if (p) {
-              // 确保玩家存在
               resetPlayers[uid] = {
-                ...p, // 保留 uid, name, id
-                chips: 1000, // 重置筹码
+                ...p,
+                chips: config.initialChips, // <--- 使用配置值 (原为 1000)
                 holeCards: [],
                 folded: false,
                 currentBet: 0,
@@ -1300,43 +1305,47 @@
             }
           });
 
-          // 2. 返回一个全新的 "waiting" 状态
           return {
-            status: "waiting", // 关键: 回到等待状态
+            status: "waiting", // 回到等待状态
             hostId: newState.hostId,
-            players: resetPlayers, // 使用重置后的玩家列表
-            playerOrder: allPlayerIds, // 恢复所有玩家
+            config: config, // <--- 确保保留配置
+            players: resetPlayers,
+            playerOrder: allPlayerIds,
             communityCards: [],
             pot: 0,
-            dealerIndex: 0, // 重置庄家
+            dealerIndex: 0,
             currentPlayerIndex: -1,
             currentMaxBet: 0,
             phase: "waiting",
-            lastRaiseAmount: BIG_BLIND,
+            lastRaiseAmount: config.bigBlind, // <--- 使用配置值 (原为 BIG_BLIND)
             deck: [],
-            logs: newLogs, // 使用新日志
-            highlightWinner: winnerId, // 短暂高亮赢家
+            logs: newLogs,
+            highlightWinner: winnerId,
             highlightCards: [],
             nextRoundTimer: 0,
             nextPhaseTimer: 0,
           };
+          // *** 结束修改 ***
         }
 
-        // *** 如果游戏未结束, 必须使用 activePlayerIds ***
-        newState.playerOrder = activePlayerIds; // 更新玩家顺序为活跃玩家
-        // *** 结束修改 (请求 #1) ***
+        // 如果游戏未结束, 使用活跃玩家列表
+        newState.playerOrder = activePlayerIds;
 
         // 3. 重置状态
         newState.communityCards = [];
         newState.pot = 0;
         newState.currentMaxBet = 0;
-        newState.lastRaiseAmount = BIG_BLIND;
+
+        // *** 修改 3: 重置最小加注额为大盲注配置 ***
+        newState.lastRaiseAmount = config.bigBlind; // <--- 使用配置值
+        // *** 结束修改 ***
+
         newState.phase = "preflop";
         newState.playersActed = [];
         newState.highlightWinner = null;
         newState.highlightCards = [];
         newState.nextRoundTimer = 0;
-        newState.nextPhaseTimer = 0; // *** 新增: 清除计时器 ***
+        newState.nextPhaseTimer = 0;
 
         // 4. 重置玩家
         newState.playerOrder.forEach((uid) => {
@@ -1358,7 +1367,7 @@
               rank,
               value: RANK_VALUES[rank],
               color: suit === "♥" || suit === "♦" ? "red" : "black",
-              id: Math.random().toString(36).substr(2, 9), // 每张牌的唯一ID
+              id: Math.random().toString(36).substr(2, 9),
             });
           }
         }
@@ -1366,7 +1375,7 @@
           const j = Math.floor(Math.random() * (i + 1));
           [deck[i], deck[j]] = [deck[j], deck[i]];
         }
-        newState.deck = deck; // 牌库存储在 state 中
+        newState.deck = deck;
 
         // 6. 移动庄家
         newState.dealerIndex =
@@ -1380,20 +1389,22 @@
         const sbPlayerId = newState.playerOrder[sbIndex];
         const bbPlayerId = newState.playerOrder[bbIndex];
 
+        // *** 修改 4: 使用配置的盲注金额 ***
         const sbPlayer = newState.players[sbPlayerId];
-        const sbAmount = Math.min(SMALL_BLIND, sbPlayer.chips);
+        const sbAmount = Math.min(config.smallBlind, sbPlayer.chips); // <--- 使用配置值
         sbPlayer.chips -= sbAmount;
         sbPlayer.currentBet = sbAmount;
         sbPlayer.status = "小盲";
 
         const bbPlayer = newState.players[bbPlayerId];
-        const bbAmount = Math.min(BIG_BLIND, bbPlayer.chips);
+        const bbAmount = Math.min(config.bigBlind, bbPlayer.chips); // <--- 使用配置值
         bbPlayer.chips -= bbAmount;
         bbPlayer.currentBet = bbAmount;
         bbPlayer.status = "大盲";
 
         newState.pot = sbAmount + bbAmount;
-        newState.currentMaxBet = BIG_BLIND;
+        newState.currentMaxBet = config.bigBlind; // <--- 使用配置值
+        // *** 结束修改 ***
 
         // 8. 发手牌
         for (let i = 0; i < 2; i++) {
@@ -2100,40 +2111,70 @@
           }
         }
 
-        // *** 修复: 动态重绘按钮，彻底解决状态卡死 ***
+        // --- 修复: 动态重绘按钮，彻底解决状态卡死 ---
         updateWaitingRoomUI(state, localId) {
           const hostControls = document.getElementById("wait-host-controls");
           const waitMessage = document.getElementById("wait-message");
           const playerCount = state.playerOrder.length;
 
+          // *** 修改 1: 获取新添加的 DOM 元素 ***
+          const btnContainer = document.getElementById("host-start-btn-container");
+          // *** 结束修改 ***
+
           if (state.hostId === localId) {
             // 我是房主
             hostControls.classList.remove("hidden");
 
+            // *** 修改 2: 添加大盲注输入框的联动逻辑 (只绑定一次) ***
+            const bbInput = document.getElementById("setting-big-blind");
+            const sbDisplay = document.getElementById("setting-sb-display");
+            
+            // 检查元素存在且尚未绑定事件
+            if(bbInput && !bbInput.oninput) {
+                bbInput.oninput = () => {
+                    const val = parseInt(bbInput.value) || 0;
+                    // 小盲注自动显示为一半 (向下取整)
+                    if(sbDisplay) sbDisplay.innerText = Math.floor(val / 2);
+                };
+            }
+            // *** 结束修改 ***
+
             if (playerCount < 2) {
               // --- 人数不足 (渲染灰色按钮) ---
-              hostControls.innerHTML = `
-                <button disabled class="bg-gray-500 text-gray-300 font-black text-2xl py-4 px-12 rounded-full shadow-none border-b-4 border-gray-700 cursor-not-allowed opacity-50">
-                  等待玩家 (${playerCount}/10)
-                </button>
-              `;
+              // *** 修改 3: 渲染到 btnContainer 中 ***
+              if (btnContainer) {
+                btnContainer.innerHTML = `
+                  <button disabled class="bg-gray-500 text-gray-300 font-black text-2xl py-4 px-12 rounded-full shadow-none border-b-4 border-gray-700 cursor-not-allowed opacity-50">
+                    等待玩家 (${playerCount}/10)
+                  </button>
+                `;
+              }
+              // *** 结束修改 ***
               waitMessage.innerText = "至少需要 2 人才能开始...";
             } else {
               // --- 人数足够 (渲染红色按钮，强制刷新 DOM) ---
-              hostControls.innerHTML = `
-                <button 
-                  id="btn-start-game"
-                  onclick="network.startGame()" 
-                  class="bg-red-600 hover:bg-red-500 text-white font-black text-2xl py-4 px-12 rounded-full shadow-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all">
-                  开始游戏
-                </button>
-              `;
+              // *** 修改 4: 渲染到 btnContainer 中 ***
+              if (btnContainer) {
+                btnContainer.innerHTML = `
+                  <button 
+                    id="btn-start-game"
+                    onclick="network.startGame()" 
+                    class="bg-red-600 hover:bg-red-500 text-white font-black text-2xl py-4 px-12 rounded-full shadow-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all">
+                    开始游戏
+                  </button>
+                `;
+              }
+              // *** 结束修改 ***
               waitMessage.innerText = `当前人数: ${playerCount}人`;
             }
           } else {
             // 我是普通玩家
             hostControls.classList.add("hidden");
-            hostControls.innerHTML = ""; // 清空按钮
+            
+            // *** 修改 5: 清空按钮容器 ***
+            if (btnContainer) btnContainer.innerHTML = ""; 
+            // *** 结束修改 ***
+            
             const hostPlayer = state.players[state.hostId];
             const hostName = hostPlayer ? hostPlayer.name : "房主";
             waitMessage.innerText = `等待 ${hostName} 开始游戏`;
@@ -2221,6 +2262,13 @@
             const initialState = {
               status: "waiting", // waiting, playing, finished
               hostId: this.localUserId,
+              // *** 新增: 默认游戏配置 ***
+              config: {
+                initialChips: 2000,
+                smallBlind: 10,
+                bigBlind: 20
+              },
+            
               players: {
                 [this.localUserId]: newPlayer,
               },
@@ -2511,42 +2559,67 @@
         // --- 房主开始游戏 (已修复: 移除旧的类名检查) ---
         async startGame() {
           if (!this.currentRoomId || !this.gameUI.lastState) return;
-          
-          // 再次检查权限 (防止黑客直接调用控制台)
           if (this.localUserId !== this.gameUI.lastState.hostId) return;
-
-          const btn = document.getElementById("btn-start-game");
+        
+          // 1. 获取并验证输入
+          const chipsInput = document.getElementById("setting-initial-chips");
+          const blindInput = document.getElementById("setting-big-blind");
           
-          // *** 关键修改: 不再检查 classList，只检查 state ***
-          // 如果按钮不存在(被替换成了灰色按钮)或者人数不足，直接返回
+          // 如果 UI还没渲染出来（比如快速点击），使用默认值
+          let newInitChips = chipsInput ? parseInt(chipsInput.value) : 1000;
+          let newBigBlind = blindInput ? parseInt(blindInput.value) : 20;
+        
+          // 验证: 必须是整数
+          newInitChips = Math.floor(newInitChips);
+          newBigBlind = Math.floor(newBigBlind);
+        
+          // 验证: 大盲注必须是 > 1 的偶数
+          if (newBigBlind < 2 || newBigBlind % 2 !== 0) {
+            this.gameUI.showMessage("大盲注必须是大于1的偶数！");
+            return;
+          }
+          // 验证: 筹码必须大于大盲注
+          if (newInitChips <= newBigBlind) {
+            this.gameUI.showMessage("初始筹码必须大于大盲注！");
+            return;
+          }
+        
+          const btn = document.getElementById("btn-start-game");
           if (!btn || this.gameUI.lastState.playerOrder.length < 2) {
-              console.warn("无法开始：人数不足或按钮不可用");
               return;
           }
-
-          // 视觉反馈：点击后暂时禁用，防止连点
+        
           btn.disabled = true;
           btn.innerText = "启动中...";
-
+        
           const roomRef = this.getRoomRef(this.currentRoomId);
           try {
             const currentState = this.gameUI.lastState;
             if (currentState.status !== "waiting") return;
-
-            // 1. 标记游戏开始
+        
+            // 2. 更新配置到 State
+            currentState.config = {
+                initialChips: newInitChips,
+                bigBlind: newBigBlind,
+                smallBlind: newBigBlind / 2
+            };
+        
+            // 3. 应用初始筹码给所有玩家 (覆盖 joinRoom 时的默认值)
+            Object.keys(currentState.players).forEach(uid => {
+                currentState.players[uid].chips = newInitChips;
+                currentState.players[uid].currentBet = 0;
+            });
+        
+            // 4. 标记游戏开始
             currentState.status = "playing";
-
-            // 2. 调用新回合逻辑 (确保使用全局函数 startNewRound)
-            // 注意: 这里的 startNewRound 必须是之前定义的那个全局函数
+        
+            // 5. 调用新回合逻辑
             const nextState = startNewRound(currentState);
-
-            // 3. 写入 Firestore
+        
             await setDoc(roomRef, nextState);
-            
-            console.log("游戏启动指令已发送");
+            console.log("游戏启动指令已发送，配置更新:", currentState.config);
           } catch (error) {
             console.error("开始游戏失败:", error);
-            // 失败恢复
             btn.disabled = false;
             btn.innerText = "开始游戏";
             this.gameUI.showMessage("启动失败，请重试");
@@ -3176,6 +3249,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
