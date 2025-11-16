@@ -938,14 +938,14 @@
               newState.playerOrder[newState.currentPlayerIndex];
             const nextPlayer = newState.players[nextPlayerId];
             
-            const hasActed = newState.playersActed.includes(nextPlayerId);
+            // 不需要检查 hasActed，因为 All-in 玩家在任何情况下都不可能再行动
             const isAllIn = nextPlayer.chips === 0;
 
-            // 跳过: 弃牌的, 或者 (All-in 且 已行动) 的
-            if (nextPlayer.folded || (isAllIn && hasActed)) {
+            if (nextPlayer.folded || isAllIn) {
                 loops++;
                 continue; // 跳过这个玩家
             }
+            // *** 修复结束 ***
 
             break; // 找到了
             
@@ -3344,3 +3344,4 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
