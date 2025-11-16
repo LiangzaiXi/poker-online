@@ -2368,7 +2368,7 @@
                 console.log("已在房间内，重新加入...");
                 // *** 修改: (请求 #1) 如果玩家已存在, 确保他们重置 ***
                 if (state.status === "waiting") {
-                  state.players[this.localUserId].chips = 1000;
+                  state.players[this.localUserId].chips = 2000;
                   state.players[this.localUserId].status = "等待中";
                 }
                 // *** 结束修改 ***
@@ -2392,7 +2392,7 @@
                 uid: this.localUserId,
                 id: newPlayerId,
                 name: localPlayerName,
-                chips: 1000,
+                chips: 2000,
                 holeCards: [],
                 folded: false,
                 currentBet: 0,
@@ -2472,7 +2472,7 @@
                     // 重置剩余玩家的状态 (恢复初始筹码)
                     state.playerOrder.forEach(uid => {
                         if(state.players[uid]) {
-                            state.players[uid].chips = 1000; // 重置为初始筹码
+                            state.players[uid].chips = 2000; // 重置为初始筹码
                             state.players[uid].holeCards = [];
                             state.players[uid].folded = false;
                             state.players[uid].currentBet = 0;
@@ -2615,7 +2615,7 @@
           const blindInput = document.getElementById("setting-big-blind");
           
           // 如果 UI还没渲染出来（比如快速点击），使用默认值
-          let newInitChips = chipsInput ? parseInt(chipsInput.value) : 1000;
+          let newInitChips = chipsInput ? parseInt(chipsInput.value) : 2000;
           let newBigBlind = blindInput ? parseInt(blindInput.value) : 20;
         
           // 验证: 必须是整数
@@ -3302,17 +3302,3 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
