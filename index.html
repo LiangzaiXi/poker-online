@@ -576,7 +576,7 @@
         id="waiting-room-overlay"
         class="hidden absolute top-0 left-0 w-full h-full z-40 flex flex-col items-center justify-center pointer-events-none"
       >
-      <div id="wait-host-controls" class="hidden pointer-events-auto flex flex-col items-center gap-4 transition-transform duration-300 mb-32">
+      <div id="wait-host-controls" class="hidden pointer-events-auto flex flex-col items-center gap-4 transition-transform duration-300 mb-28">
           
             <div id="host-settings-panel" class="bg-gray-800/80 p-4 rounded-lg border border-gray-600 w-72 backdrop-blur-sm shadow-lg">
               
@@ -2665,8 +2665,8 @@
             hasError = true;
           }
           
-          // 验证初始筹码 (如果大盲注本身就错了，就不必比大小了，防止逻辑混乱)
-          if (!hasError && newInitChips <= newBigBlind) {
+          // 验证初始筹码
+          if (newInitChips <= newBigBlind) {
             if (errChipsEl) errChipsEl.innerText = "必须大于大盲注！";
             hasError = true;
           }
@@ -3344,6 +3344,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
