@@ -439,7 +439,7 @@
 
         <div class="flex items-center space-x-4">
           
-          <div class="flex flex-col items-end mr-1 bg-gray-800 px-2 py-1 rounded border border-gray-700">
+          <div class="flex flex-col items-center mr-1 bg-gray-800 px-2 py-1 rounded border border-gray-700">
             <span class="text-gray-500 text-[10px] font-bold leading-none mb-1">房间号</span>
             <span id="display-room-id" class="text-yellow-500 font-mono font-bold text-sm leading-none">---</span>
           </div>
@@ -2159,7 +2159,7 @@
           }
         }
 
-        // --- 修复: 动态重绘按钮，彻底解决状态卡死 ---
+        // --- 修复: 房主界面优化 (彻底隐藏提示框，消除阴影) ---
         updateWaitingRoomUI(state, localId) {
           const hostControls = document.getElementById("wait-host-controls");
           const waitMessage = document.getElementById("wait-message");
@@ -2170,7 +2170,7 @@
             // --- 我是房主 ---
             hostControls.classList.remove("hidden");
 
-            // 绑定输入框联动 (大盲 -> 小盲)
+            // 绑定输入框联动
             const bbInput = document.getElementById("setting-big-blind");
             const sbDisplay = document.getElementById("setting-sb-display");
             if(bbInput && !bbInput.oninput) {
@@ -2180,12 +2180,12 @@
                 };
             }
 
-            // *** 修改 1: 房主不需要额外的文本提示，直接清空 ***
-            waitMessage.innerText = ""; 
+            // *** 修改 1: 直接隐藏该元素，彻底消除背景和阴影 ***
+            waitMessage.classList.add("hidden"); 
             // *** 结束修改 ***
 
             if (playerCount < 2) {
-              // --- 人数不足 (灰色按钮) ---
+              // --- 人数不足 ---
               if (btnContainer) {
                 btnContainer.innerHTML = `
                   <button disabled class="bg-gray-500 text-gray-300 font-black text-2xl py-4 px-12 rounded-full shadow-none border-b-4 border-gray-700 cursor-not-allowed opacity-50">
@@ -2194,9 +2194,8 @@
                 `;
               }
             } else {
-              // --- 人数足够 (红色按钮) ---
+              // --- 人数足够 ---
               if (btnContainer) {
-                // *** 修改 2: 在“开始游戏”后面加上人数进度 ***
                 btnContainer.innerHTML = `
                   <button 
                     id="btn-start-game"
@@ -2205,7 +2204,6 @@
                     开始游戏 (${playerCount}/10)
                   </button>
                 `;
-                // *** 结束修改 ***
               }
             }
           } else {
@@ -2216,7 +2214,8 @@
             const hostPlayer = state.players[state.hostId];
             const hostName = hostPlayer ? hostPlayer.name : "房主";
             
-            // *** 修改 3: 普通玩家依然可以看到提示 ***
+            // *** 修改 2: 普通玩家需要移除 hidden 类，才能看到框 ***
+            waitMessage.classList.remove("hidden");
             waitMessage.innerText = `等待 ${hostName} 开始游戏...`;
             // *** 结束修改 ***
           }
@@ -3295,4 +3294,5 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
