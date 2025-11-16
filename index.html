@@ -2517,6 +2517,7 @@
         // --- 订阅房间更新 ---
         subscribeToRoom(roomId) {
           this.currentRoomId = roomId;
+          document.getElementById("display-room-id").innerText = roomId;
           document.getElementById("room-screen").classList.add("hidden");
           document.getElementById("game-area").classList.remove("hidden");
           this.gameUI.initSound();
@@ -3301,6 +3302,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
