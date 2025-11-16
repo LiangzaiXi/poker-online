@@ -578,9 +578,13 @@
       >
       <div id="wait-host-controls" class="hidden pointer-events-auto flex flex-col items-center gap-4 transition-transform duration-300 mb-32">
           
-            <div id="host-settings-panel" class="bg-gray-800/80 p-4 rounded-lg border border-gray-600 w-64 backdrop-blur-sm shadow-lg">
+            <div id="host-settings-panel" class="bg-gray-800/80 p-4 rounded-lg border border-gray-600 w-72 backdrop-blur-sm shadow-lg">
+              
               <div class="mb-3">
-                <label class="block text-yellow-500 text-xs font-bold mb-1">初始筹码 (整数)</label>
+                <div class="flex justify-between items-center mb-1">
+                    <label class="block text-yellow-500 text-xs font-bold">初始筹码</label>
+                    <span id="error-chips-inline" class="text-red-500 text-[10px] font-bold animate-pulse"></span>
+                </div>
                 <input 
                     type="number" 
                     id="setting-initial-chips" 
@@ -590,8 +594,12 @@
                     class="w-full bg-gray-900 text-white border border-gray-600 rounded px-2 py-1 text-sm focus:border-yellow-500 outline-none font-mono"
                 >
               </div>
+
               <div>
-                <label class="block text-yellow-500 text-xs font-bold mb-1">大盲注 (偶数 > 1)</label>
+                <div class="flex justify-between items-center mb-1">
+                    <label class="block text-yellow-500 text-xs font-bold">大盲注</label>
+                    <span id="error-blind-inline" class="text-red-500 text-[10px] font-bold animate-pulse"></span>
+                </div>
                 <input 
                     type="number" 
                     id="setting-big-blind" 
@@ -2626,68 +2634,81 @@
           // 3. 移除了 AI 行动检查
         }
 
-        // --- 房主开始游戏 (已修复: 移除旧的类名检查) ---
+        // --- 房主开始游戏 (已修复: 错误提示在标题右侧) ---
         async startGame() {
           if (!this.currentRoomId || !this.gameUI.lastState) return;
           if (this.localUserId !== this.gameUI.lastState.hostId) return;
-        
-          // 1. 获取并验证输入
+
+          // 1. 获取行内错误元素
+          const errChipsEl = document.getElementById("error-chips-inline");
+          const errBlindEl = document.getElementById("error-blind-inline");
+          
+          // 2. 清空旧错误
+          if (errChipsEl) errChipsEl.innerText = "";
+          if (errBlindEl) errBlindEl.innerText = "";
+
           const chipsInput = document.getElementById("setting-initial-chips");
           const blindInput = document.getElementById("setting-big-blind");
           
-          // 如果 UI还没渲染出来（比如快速点击），使用默认值
-          let newInitChips = chipsInput ? parseInt(chipsInput.value) : 2000;
+          let newInitChips = chipsInput ? parseInt(chipsInput.value) : 1000;
           let newBigBlind = blindInput ? parseInt(blindInput.value) : 20;
-        
-          // 验证: 必须是整数
+
           newInitChips = Math.floor(newInitChips);
           newBigBlind = Math.floor(newBigBlind);
-        
-          // 验证: 大盲注必须是 > 1 的偶数
+
+          // *** 修改: 验证逻辑，定向输出错误 ***
+          let hasError = false;
+
+          // 验证大盲注
           if (newBigBlind < 2 || newBigBlind % 2 !== 0) {
-            this.gameUI.showMessage("大盲注必须是大于1的偶数！");
-            return;
+            if (errBlindEl) errBlindEl.innerText = "必须是大于1的偶数！";
+            hasError = true;
           }
-          // 验证: 筹码必须大于大盲注
-          if (newInitChips <= newBigBlind) {
-            this.gameUI.showMessage("初始筹码必须大于大盲注！");
-            return;
+          
+          // 验证初始筹码 (如果大盲注本身就错了，就不必比大小了，防止逻辑混乱)
+          if (!hasError && newInitChips <= newBigBlind) {
+            if (errChipsEl) errChipsEl.innerText = "必须大于大盲注！";
+            hasError = true;
           }
-        
+
+          if (hasError) {
+              // 震动反馈
+              if (navigator.vibrate) navigator.vibrate(200);
+              return;
+          }
+          // *** 结束修改 ***
+
           const btn = document.getElementById("btn-start-game");
           if (!btn || this.gameUI.lastState.playerOrder.length < 2) {
               return;
           }
-        
+
           btn.disabled = true;
           btn.innerText = "启动中...";
-        
+
           const roomRef = this.getRoomRef(this.currentRoomId);
           try {
             const currentState = this.gameUI.lastState;
             if (currentState.status !== "waiting") return;
-        
-            // 2. 更新配置到 State
+
+            // 写入配置
             currentState.config = {
                 initialChips: newInitChips,
                 bigBlind: newBigBlind,
-                smallBlind: newBigBlind / 2
+                smallBlind: Math.floor(newBigBlind / 2)
             };
-        
-            // 3. 应用初始筹码给所有玩家 (覆盖 joinRoom 时的默认值)
+
+            // 覆盖所有人的筹码
             Object.keys(currentState.players).forEach(uid => {
                 currentState.players[uid].chips = newInitChips;
                 currentState.players[uid].currentBet = 0;
             });
-        
-            // 4. 标记游戏开始
+
             currentState.status = "playing";
-        
-            // 5. 调用新回合逻辑
             const nextState = startNewRound(currentState);
-        
+
             await setDoc(roomRef, nextState);
-            console.log("游戏启动指令已发送，配置更新:", currentState.config);
+            console.log("游戏启动指令已发送");
           } catch (error) {
             console.error("开始游戏失败:", error);
             btn.disabled = false;
@@ -3323,6 +3344,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
