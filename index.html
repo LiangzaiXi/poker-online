@@ -22,8 +22,27 @@
         touch-action: none;
         user-select: none;
       }
-
+      
       /* --- 卡牌样式 --- */
+      @keyframes flipIn {
+        0% {
+          transform: perspective(1000px) rotateY(90deg) scale(0.8);
+          opacity: 0;
+        }
+        70% {
+          transform: perspective(1000px) rotateY(-10deg) scale(1.05);
+          opacity: 1;
+        }
+        100% {
+          transform: perspective(1000px) rotateY(0deg) scale(1);
+          opacity: 1;
+        }
+      } 
+      .card-flip-enter {
+        animation: flipIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        transform-origin: center center;
+        backface-visibility: hidden; /* 隐藏背面 */
+      }
       .card {
         width: 42px;
         height: 60px;
@@ -1495,6 +1514,7 @@
           this.highlightCards = new Set();
           this.bankruptcyScreenShown = false; // *** 新增: 破产界面显示标志 ***
           this.lastAllInPlayerTriggered = null; // *** 修复: 移到构造函数 ***
+          this.shownCardIds = new Set();
 
           // 绑定加注滑块
           document.getElementById("raise-slider").oninput = () => {
@@ -1529,6 +1549,18 @@
             return;
           }
 
+          // *** 新增: 如果是新的一局（翻牌前且桌上无公共牌），重置动画记录 ***
+          if (state.phase === 'preflop' && state.communityCards.length === 0) {
+             // 只保留玩家自己的手牌记录，或者干脆全部清空让手牌也重新发一次
+             // 这里我们选择全部清空，这样新回合发手牌时也会有动画
+             if (this.lastState && this.lastState.phase !== 'preflop') {
+                 this.shownCardIds.clear();
+             }
+          }
+          // 如果刚刚从 waiting 进入 playing，也要清空
+          if (this.lastState && this.lastState.status === 'waiting' && state.status === 'playing') {
+             this.shownCardIds.clear();
+          }
           // *** 新增: 确保音效被激活 (请求 #1) ***
           this.initSound();
 
@@ -2123,6 +2155,10 @@
         createCardEl(c) {
           const d = document.createElement("div");
           d.className = `card ${c.color}`;
+          if (!this.shownCardIds.has(c.id)) {
+            d.classList.add("card-flip-enter");
+            this.shownCardIds.add(c.id); // 标记为已显示
+          }
           if (this.highlightCards.has(c.id)) d.classList.add("winning-card");
           d.innerHTML = `<span class="absolute top-0 left-1 text-xs">${c.rank}</span><span class="text-2xl">${c.suit}</span>`;
           return d;
@@ -3344,4 +3380,5 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
