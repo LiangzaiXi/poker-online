@@ -479,12 +479,13 @@
         >
           <div
             id="community-area"
-            class="absolute top-[42%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center space-y-2 z-20 transition-opacity duration-200"
+            class="absolute top-[42%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-20 transition-opacity duration-200"
           >
             <div
               id="community-cards"
-              class="flex flex-col items-center space-y-2"
-            ></div>
+              class="flex flex-wrap justify-center items-center gap-1 sm:gap-2 max-w-[150px] md:max-w-none transition-all duration-300"
+            >
+              </div>
           </div>
           <div
             id="game-message"
@@ -1627,20 +1628,12 @@
           // 3. 渲染公共牌
           const commDiv = document.getElementById("community-cards");
           commDiv.innerHTML = "";
-          const row1 = document.createElement("div");
-          row1.className = "flex space-x-2";
-          const row2 = document.createElement("div");
-          row2.className = "flex space-x-2";
-
-          // *** 修复: 移除了 this.highlightCards 的重复设置 ***
-
-          state.communityCards.forEach((c, i) => {
+          
+          // *** 修改: 不再手动创建 row1/row2，直接把牌塞进容器，让 CSS 控制换行 ***
+          state.communityCards.forEach((c) => {
             const cardEl = this.createCardEl(c);
-            if (i < 3) row1.appendChild(cardEl);
-            else row2.appendChild(cardEl);
+            commDiv.appendChild(cardEl);
           });
-          commDiv.appendChild(row1);
-          if (state.communityCards.length > 3) commDiv.appendChild(row2);
 
           // 4. 更新日志
           const logDiv = document.getElementById("game-log");
@@ -3350,4 +3343,5 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
