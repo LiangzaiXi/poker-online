@@ -21,6 +21,8 @@
         overflow: hidden;
         touch-action: none;
         user-select: none;
+        height: 100dvh; 
+        width: 100vw;
       }
 
       /* --- 卡牌样式 --- */
@@ -78,19 +80,20 @@
 
       /* --- 牌桌 --- */
       .poker-table {
-        background: radial-gradient(
-          circle,
-          #15803d 0%,
-          #064e3b 90%,
-          #022c22 100%
-        );
-        box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.9), 0 0 0 12px #374151,
-          0 0 0 16px #1f2937;
+        background: radial-gradient(circle, #15803d 0%, #064e3b 90%, #022c22 100%);
+        box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.9), 0 0 0 12px #374151, 0 0 0 16px #1f2937;
         position: relative;
         border-radius: 180px;
-        transform: translateY(30px);
+        /* *** 修复 2: 手机端移除向下位移，腾出底部空间 *** */
+        transform: translateY(0px); 
         will-change: transform;
-      }
+    }
+      /* 仅在电脑/大屏上保留位移 */
+    @media (min-width: 768px) {
+        .poker-table {
+            transform: translateY(30px);
+        }
+    }
 
       .cursor-grab {
         cursor: grab;
@@ -332,10 +335,13 @@
         cursor: not-allowed !important;
         transform: none !important;
       }
+      #bottom-bar {
+        padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    }
     </style>
   </head>
   <body
-    class="h-screen w-screen flex flex-col items-center justify-center bg-gray-950"
+    class="h-[100dvh] w-screen flex flex-col items-center justify-center bg-gray-950"
   >
     <!-- *** 新增: Firebase 加载动画 *** -->
     <div id="firebase-loader" class="firebase-loader">
@@ -3344,3 +3350,4 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
