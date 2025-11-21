@@ -2195,6 +2195,13 @@
           d.innerHTML = `<span class="absolute top-0 left-1 text-xs">${c.rank}</span><span class="text-2xl">${c.suit}</span>`;
           return d;
         }
+        createBackEl() {
+          const d = document.createElement("div");
+          d.className = "card card-back";
+          return d;
+        }
+
+      }
 
       // --- 网络和 Firebase 交互 ---
       class NetworkManager {
@@ -3412,6 +3419,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
