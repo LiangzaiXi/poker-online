@@ -73,6 +73,33 @@
       display: none;
     }
 
+    /* *** 新增: 卡牌占位符 (空框) *** */
+    .card-placeholder {
+      /* 基础尺寸: 与 .card 保持一致 */
+      width: 42px;
+      height: 60px;
+      border-radius: 4px;
+      /* 虚线边框 + 半透明背景 */
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      background-color: rgba(0, 0, 0, 0.2);
+      /* 布局属性 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      box-sizing: border-box;
+      /* 确保边框不撑大尺寸 */
+    }
+
+    /* 平板/电脑端尺寸调整 (必须与 .card 的媒体查询同步) */
+    @media (min-width: 768px) {
+      .card-placeholder {
+        width: 56px;
+        height: 78px;
+        border-radius: 6px;
+      }
+    }
+
     /* --- 获胜牌高亮特效 --- */
     .card.winning-card {
       box-shadow: 0 0 15px 5px rgba(251, 191, 36, 0.9);
@@ -458,6 +485,11 @@
           class="absolute top-[42%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-20 transition-opacity duration-200">
           <div id="community-cards"
             class="flex flex-wrap justify-center items-center gap-1 sm:gap-2 max-w-[150px] md:max-w-none transition-all duration-300">
+            <div id="comm-slot-0" class="card-placeholder"></div>
+            <div id="comm-slot-1" class="card-placeholder"></div>
+            <div id="comm-slot-2" class="card-placeholder"></div>
+            <div id="comm-slot-3" class="card-placeholder"></div>
+            <div id="comm-slot-4" class="card-placeholder"></div>
           </div>
         </div>
         <div id="game-message"
@@ -1551,14 +1583,21 @@
         this.renderTableLayout(state, localId);
 
         // 3. 渲染公共牌
-        const commDiv = document.getElementById("community-cards");
-        commDiv.innerHTML = "";
+        for (let i = 0; i < 5; i++) {
+          const slot = document.getElementById(`comm-slot-${i}`);
+          if (!slot) continue;
 
-        // *** 修改: 不再手动创建 row1/row2，直接把牌塞进容器，让 CSS 控制换行 ***
-        state.communityCards.forEach((c) => {
-          const cardEl = this.createCardEl(c);
-          commDiv.appendChild(cardEl);
-        });
+          const cardData = state.communityCards[i];
+
+          if (cardData) {
+            if (slot.children.length === 0) {
+              const cardEl = this.createCardEl(cardData);
+              slot.appendChild(cardEl);
+            }
+          } else {
+            slot.innerHTML = "";
+          }
+        }
 
         // 4. 更新日志
         const logDiv = document.getElementById("game-log");
@@ -3323,4 +3362,5 @@
 
   <!-- 移除旧的 <script> ... </script> 块 -->
 </body>
+
 </html>
