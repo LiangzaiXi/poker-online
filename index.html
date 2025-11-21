@@ -73,25 +73,33 @@
       display: none;
     }
 
-    /* *** 新增: 卡牌占位符 (空框) *** */
+    /* *** 修改: 智能虚线框 (只在空的时候显示虚线) *** */
     .card-placeholder {
       /* 基础尺寸: 与 .card 保持一致 */
       width: 42px;
       height: 60px;
       border-radius: 4px;
-      /* 虚线边框 + 半透明背景 */
-      border: 2px dashed rgba(255, 255, 255, 0.2);
-      background-color: rgba(0, 0, 0, 0.2);
+
       /* 布局属性 */
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
-      box-sizing: border-box;
-      /* 确保边框不撑大尺寸 */
+
+      /* 默认没有边框，这样有牌的时候就不会漏出来 */
+      border: none;
+      background: transparent;
     }
 
-    /* 平板/电脑端尺寸调整 (必须与 .card 的媒体查询同步) */
+    /* *** 关键: 只有当里面为空时，才显示虚线框 *** */
+    .card-placeholder:empty {
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      background-color: rgba(0, 0, 0, 0.2);
+      /* 加上这个确保加了边框后整体尺寸不变 */
+      box-sizing: border-box;
+    }
+
+    /* 平板/电脑端尺寸调整 */
     @media (min-width: 768px) {
       .card-placeholder {
         width: 56px;
@@ -1582,7 +1590,7 @@
         // 2. 渲染牌桌
         this.renderTableLayout(state, localId);
 
-        // 3. 渲染公共牌
+        // 3. 渲染公共牌 (修复版: 固定位置 + 实时更新高亮)
         for (let i = 0; i < 5; i++) {
           const slot = document.getElementById(`comm-slot-${i}`);
           if (!slot) continue;
@@ -1590,11 +1598,30 @@
           const cardData = state.communityCards[i];
 
           if (cardData) {
-            if (slot.children.length === 0) {
-              const cardEl = this.createCardEl(cardData);
+            // 获取槽位里现有的卡牌元素
+            let cardEl = slot.firstElementChild;
+
+            // A. 如果槽位是空的，创建新牌放进去
+            if (!cardEl) {
+              cardEl = this.createCardEl(cardData);
               slot.appendChild(cardEl);
             }
+
+            // B. *** 核心修复: 强制更新高亮状态 ***
+            // 无论牌是刚创建的还是本来就在那的，都要检查它是否属于“获胜牌”
+            if (this.highlightCards.has(cardData.id)) {
+              if (!cardEl.classList.contains("winning-card")) {
+                cardEl.classList.add("winning-card");
+              }
+            } else {
+              // 如果新的一局开始，或者它不是获胜牌，要移除高亮
+              if (cardEl.classList.contains("winning-card")) {
+                cardEl.classList.remove("winning-card");
+              }
+            }
+
           } else {
+            // 如果这个位置没牌，清空（显示虚线框）
             slot.innerHTML = "";
           }
         }
