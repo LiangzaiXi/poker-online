@@ -1345,41 +1345,45 @@
     }
 
     // --- 游戏逻辑：房主开始新回合 ---
+    // --- 游戏逻辑：房主开始新回合 (修复版) ---
     function startNewRound(currentState) {
       let newState = JSON.parse(JSON.stringify(currentState));
 
-      // *** 修改 1: 获取配置 (如果有)，否则使用默认值 ***
       const config = newState.config || {
         initialChips: 2000,
         smallBlind: 10,
         bigBlind: 20
       };
-      // *** 结束修改 ***
 
-      // 1. 淘汰筹码为 0 的玩家
+      // 1. 筛选活跃玩家
       let activePlayerIds = [];
-      const allPlayerIds = Object.keys(newState.players); // 获取所有玩家ID
+      const allPlayerIds = Object.keys(newState.players);
 
       allPlayerIds.forEach((uid) => {
+        // *** 关键修复: 防止 chips 为 NaN 或 undefined ***
+        if (typeof newState.players[uid].chips !== 'number' || isNaN(newState.players[uid].chips)) {
+          newState.players[uid].chips = 0;
+        }
+
         if (newState.players[uid].chips > 0) {
           activePlayerIds.push(uid);
         } else {
-          newState.players[uid].folded = true; // 标记为旁观
+          newState.players[uid].folded = true;
           newState.players[uid].status = "淘汰";
         }
       });
 
-      // 2. 检查游戏是否结束 (只剩1人或0人)
+      // 2. 检查游戏是否结束
       if (activePlayerIds.length < 2) {
         const winnerId = activePlayerIds.length > 0 ? activePlayerIds[0] : null;
         const winnerName = winnerId ? newState.players[winnerId].name : "无人";
 
         let newLogs = [...newState.logs];
         newLogs.push(`--- 游戏结束! ${winnerName} 获胜! ---`);
-        newLogs.push("--- 房间已重置, 等待房主重新开始 ---");
+        newLogs.push("--- 房间已重置 ---");
         if (newLogs.length > 20) newLogs = newLogs.slice(newLogs.length - 20);
 
-        // *** 修改 2: 游戏结束后，重置筹码为配置的初始值 ***
+        // 重置筹码以便开始新游戏
         const resetPlayers = {};
         allPlayerIds.forEach((uid) => {
           const p = newState.players[uid];
@@ -1398,9 +1402,9 @@
         });
 
         return {
-          status: "waiting", // 回到等待状态
+          status: "waiting",
           hostId: newState.hostId,
-          config: config, // <--- 确保保留配置
+          config: config,
           players: resetPlayers,
           playerOrder: allPlayerIds,
           communityCards: [],
@@ -1409,7 +1413,7 @@
           currentPlayerIndex: -1,
           currentMaxBet: 0,
           phase: "waiting",
-          lastRaiseAmount: config.bigBlind, // <--- 使用配置值 (原为 BIG_BLIND)
+          lastRaiseAmount: config.bigBlind,
           deck: [],
           logs: newLogs,
           highlightWinner: winnerId,
@@ -1417,21 +1421,14 @@
           nextRoundTimer: 0,
           nextPhaseTimer: 0,
         };
-        // *** 结束修改 ***
       }
 
-      // 如果游戏未结束, 使用活跃玩家列表
+      // 游戏继续
       newState.playerOrder = activePlayerIds;
-
-      // 3. 重置状态
       newState.communityCards = [];
       newState.pot = 0;
       newState.currentMaxBet = 0;
-
-      // *** 修改 3: 重置最小加注额为大盲注配置 ***
-      newState.lastRaiseAmount = config.bigBlind; // <--- 使用配置值
-      // *** 结束修改 ***
-
+      newState.lastRaiseAmount = config.bigBlind;
       newState.phase = "preflop";
       newState.playersActed = [];
       newState.highlightWinner = null;
@@ -1439,7 +1436,7 @@
       newState.nextRoundTimer = 0;
       newState.nextPhaseTimer = 0;
 
-      // 4. 重置玩家
+      // 重置玩家本局状态
       newState.playerOrder.forEach((uid) => {
         const p = newState.players[uid];
         p.holeCards = [];
@@ -1450,13 +1447,12 @@
         p.bestHand = null;
       });
 
-      // 5. 洗牌
+      // 洗牌
       let deck = [];
       for (let suit of SUITS) {
         for (let rank of RANKS) {
           deck.push({
-            suit,
-            rank,
+            suit, rank,
             value: RANK_VALUES[rank],
             color: suit === "♥" || suit === "♦" ? "red" : "black",
             id: Math.random().toString(36).substr(2, 9),
@@ -1469,86 +1465,56 @@
       }
       newState.deck = deck;
 
-      // 6. 移动庄家
-      newState.dealerIndex =
-        (newState.dealerIndex + 1) % newState.playerOrder.length;
+      // 移动庄家
+      newState.dealerIndex = (newState.dealerIndex + 1) % newState.playerOrder.length;
       const numPlayers = newState.playerOrder.length;
 
-      // 7. 放置盲注
+      // 盲注
       const sbIndex = (newState.dealerIndex + 1) % numPlayers;
       const bbIndex = (newState.dealerIndex + 2) % numPlayers;
 
-      const sbPlayerId = newState.playerOrder[sbIndex];
-      const bbPlayerId = newState.playerOrder[bbIndex];
+      const sbPlayer = newState.players[newState.playerOrder[sbIndex]];
+      const bbPlayer = newState.players[newState.playerOrder[bbIndex]];
 
-      // --- 修改开始: 小盲注全押检测 ---
-      const sbPlayer = newState.players[sbPlayerId];
       const sbAmount = Math.min(config.smallBlind, sbPlayer.chips);
       sbPlayer.chips -= sbAmount;
       sbPlayer.currentBet = sbAmount;
-      // 如果扣完钱筹码为0，状态必须是 "全押"，否则是 "小盲"
       sbPlayer.status = sbPlayer.chips === 0 ? "全押" : "小盲";
-      // --- 修改结束 ---
 
-      // --- 修改开始: 大盲注全押检测 ---
-      const bbPlayer = newState.players[bbPlayerId];
       const bbAmount = Math.min(config.bigBlind, bbPlayer.chips);
       bbPlayer.chips -= bbAmount;
       bbPlayer.currentBet = bbAmount;
-      // 如果扣完钱筹码为0，状态必须是 "全押"，否则是 "大盲"
       bbPlayer.status = bbPlayer.chips === 0 ? "全押" : "大盲";
-      // --- 修改结束 ---
 
       newState.pot = sbAmount + bbAmount;
       newState.currentMaxBet = config.bigBlind;
 
-      // 8. 发手牌
+      // 发牌
       for (let i = 0; i < 2; i++) {
         for (let uid of newState.playerOrder) {
           newState.players[uid].holeCards.push(newState.deck.pop());
         }
       }
 
-      // 9. 设置第一个行动者 (从大盲注左侧开始找)
-      // (保留你刚才修好的跳过全押玩家的逻辑)
+      // 设置行动者
       let nextIdx = (bbIndex + 1) % numPlayers;
       let loopCount = 0;
-
       while (loopCount < numPlayers) {
-        const pId = newState.playerOrder[nextIdx];
-        const p = newState.players[pId];
-        if (p.chips > 0) {
-          break;
-        }
+        const p = newState.players[newState.playerOrder[nextIdx]];
+        if (p.chips > 0) break;
         nextIdx = (nextIdx + 1) % numPlayers;
         loopCount++;
       }
       newState.currentPlayerIndex = nextIdx;
 
-      // *** 新增: 检查盲注阶段是否直接形成 All-in 局面 ***
-      // 获取所有正在玩且未弃牌的人
-      const activePlayersInGame = newState.playerOrder
-        .map(uid => newState.players[uid])
-        .filter(p => !p.folded);
-
-      // 获取还有筹码的人
+      // 检查是否需要自动摊牌 (盲注导致全押)
+      const activePlayersInGame = newState.playerOrder.map(uid => newState.players[uid]).filter(p => !p.folded);
       const playersWithChips = activePlayersInGame.filter(p => p.chips > 0);
 
-      // 判定条件: 
-      // 1. 游戏里至少有2个人 (activePlayersInGame.length >= 2)
-      // 2. 拥有筹码的人数 <= 1 (意味着其他人全押了，或者所有人全押了)
-      // 这种情况在单挑时: A(5, All-in), B(10) -> B有筹码, A无 -> count=1 -> 触发
       if (activePlayersInGame.length >= 2 && playersWithChips.length <= 1) {
         newState.logs.push("--- 盲注导致全押，自动进入摊牌 ---");
-
-        // 关键: 直接调用自动摊牌函数
-        // runAutoShowdown 会自动:
-        // 1. 调用 returnExcessBets 退还 B 多下的盲注 (10 - 5 = 5)
-        // 2. 发完剩下的公共牌
-        // 3. 进入结算
         return runAutoShowdown(newState);
       }
-      // *** 新增结束 ***
 
       newState.logs.push("--- 新回合开始 ---");
       return newState;
@@ -2979,6 +2945,7 @@
       }
 
       // --- 房主开始游戏 (已修复: 错误提示在标题右侧) ---
+      // --- 房主开始游戏 (修复版: 防止 NaN 导致游戏闪退) ---
       async startGame() {
         if (!this.currentRoomId || !this.gameUI.lastState) return;
         if (this.localUserId !== this.gameUI.lastState.hostId) return;
@@ -2986,47 +2953,42 @@
         // 1. 获取行内错误元素
         const errChipsEl = document.getElementById("error-chips-inline");
         const errBlindEl = document.getElementById("error-blind-inline");
-
-        // 2. 清空旧错误
         if (errChipsEl) errChipsEl.innerText = "";
         if (errBlindEl) errBlindEl.innerText = "";
 
         const chipsInput = document.getElementById("setting-initial-chips");
         const blindInput = document.getElementById("setting-big-blind");
 
+        // 2. 读取数值 (增加 NaN 兜底检查)
         let newInitChips = chipsInput ? parseInt(chipsInput.value) : 2000;
         let newBigBlind = blindInput ? parseInt(blindInput.value) : 20;
 
-        newInitChips = Math.floor(newInitChips);
-        newBigBlind = Math.floor(newBigBlind);
+        // *** 关键修复: 如果输入无效，强制使用默认值 ***
+        if (isNaN(newInitChips) || newInitChips <= 0) newInitChips = 2000;
+        if (isNaN(newBigBlind) || newBigBlind <= 0) newBigBlind = 20;
 
-        // *** 修改: 验证逻辑，定向输出错误 ***
+        // 确保大盲注是偶数
+        if (newBigBlind % 2 !== 0) newBigBlind += 1;
+
+        // 3. 验证逻辑
         let hasError = false;
-
-        // 验证大盲注
-        if (newBigBlind < 2 || newBigBlind % 2 !== 0) {
-          if (errBlindEl) errBlindEl.innerText = "必须是大于1的偶数！";
-          hasError = true;
-        }
-
-        // 验证初始筹码
         if (newInitChips <= newBigBlind) {
-          if (errChipsEl) errChipsEl.innerText = "必须大于大盲注！";
+          if (errChipsEl) errChipsEl.innerText = "筹码过少！";
           hasError = true;
         }
 
         if (hasError) {
-          // 震动反馈
           if (navigator.vibrate) navigator.vibrate(200);
           return;
         }
-        // *** 结束修改 ***
 
         const btn = document.getElementById("btn-start-game");
+        // 只有玩家数 >= 2 才能开始
         if (!btn || this.gameUI.lastState.playerOrder.length < 2) {
           return;
         }
 
+        // 4. 锁定按钮
         btn.disabled = true;
         btn.innerText = "启动中...";
 
@@ -3046,6 +3008,9 @@
           Object.keys(currentState.players).forEach(uid => {
             currentState.players[uid].chips = newInitChips;
             currentState.players[uid].currentBet = 0;
+            // 确保状态重置
+            currentState.players[uid].folded = false;
+            currentState.players[uid].status = "等待中";
           });
 
           currentState.status = "playing";
@@ -3056,8 +3021,9 @@
         } catch (error) {
           console.error("开始游戏失败:", error);
           btn.disabled = false;
-          btn.innerText = "开始游戏";
-          this.gameUI.showMessage("启动失败，请重试");
+          btn.innerText = "开始游戏"; // 恢复按钮文本
+          // 注意: showMessage 可能会被等待室遮挡，所以最好依赖控制台或按钮恢复
+          this.gameUI.showMessage("启动失败");
         }
       }
 
