@@ -2210,6 +2210,12 @@
           this.nextPhaseTimeout = null; // *** 新增: 自动推进计时器 ***
           // *** 移除: AI 思考锁 ***
         }
+        createBackEl() {
+          const d = document.createElement("div");
+          d.className = "card card-back";
+          return d;
+        }
+      }
 
         async init() {
           try {
@@ -3406,6 +3412,7 @@
     <!-- 移除旧的 <script> ... </script> 块 -->
   </body>
 </html>
+
 
 
 
