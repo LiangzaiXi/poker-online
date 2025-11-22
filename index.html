@@ -1883,6 +1883,7 @@
       updateWaitingRoomUI(state, localId) {
         const hostControls = document.getElementById("wait-host-controls");
         const btnContainer = document.getElementById("host-start-btn-container");
+
         if (state.hostId === localId) {
           hostControls.classList.remove("hidden");
           const playerCount = state.playerOrder.length;
@@ -1896,7 +1897,7 @@
           } else {
             if (btnContainer) {
               btnContainer.innerHTML = `
-                  <button id="btn-start-game-action" onclick="network.startGame()" 
+                  <button id="btn-start-game" onclick="network.startGame()" 
                     class="bg-red-600 hover:bg-red-500 text-white font-black text-2xl py-4 px-12 rounded-full shadow-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all">
                     ${t("startGameBtn")} (${playerCount}/10)
                   </button>`;
@@ -1907,9 +1908,10 @@
           const sbDisplay = document.getElementById("setting-sb-display");
           const errChips = document.getElementById("error-chips-inline");
           const errBlind = document.getElementById("error-blind-inline");
-          const startBtn = document.getElementById("btn-start-game-action");
+          const startBtn = document.getElementById("btn-start-game");
           const validateInputs = () => {
             let isValid = true;
+
             const chipsVal = parseInt(chipsInput.value) || 0;
             const bbVal = parseInt(bbInput.value) || 0;
             if (bbVal < 2) {
@@ -1938,15 +1940,19 @@
               }
             }
           };
-          chipsInput.oninput = () => {
-            chipsInput.value = chipsInput.value.replace(/[^\d]/g, '');
-            validateInputs();
-          };
+          if (chipsInput) {
+            chipsInput.oninput = () => {
+              chipsInput.value = chipsInput.value.replace(/[^\d]/g, '');
+              validateInputs();
+            };
+          }
 
-          bbInput.oninput = () => {
-            bbInput.value = bbInput.value.replace(/[^\d]/g, '');
-            validateInputs();
-          };
+          if (bbInput) {
+            bbInput.oninput = () => {
+              bbInput.value = bbInput.value.replace(/[^\d]/g, '');
+              validateInputs();
+            };
+          }
           validateInputs();
         } else {
           hostControls.classList.add("hidden");
