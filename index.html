@@ -1027,7 +1027,9 @@
         } while (loops <= newState.playerOrder.length * 2);
       }
 
-      if (triggerAllInEffect) newState.lastAllInPlayer = player.name;
+      if (triggerAllInEffect) {
+        newState.lastAllInPlayer = player.uid + "_" + Date.now();
+      }
       return newState;
     }
 
