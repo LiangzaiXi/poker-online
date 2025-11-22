@@ -1213,7 +1213,7 @@
       const config = newState.config || { initialChips: 2000, smallBlind: 10, bigBlind: 20 };
 
       let activePlayerIds = [];
-      const allPlayerIds = Object.keys(newState.players);
+      const allPlayerIds = currentState.playerOrder;
 
       allPlayerIds.forEach(uid => {
         if (newState.players[uid].chips > 0) activePlayerIds.push(uid);
@@ -2214,6 +2214,11 @@
             currentState.players[uid].chips = newInitChips;
             currentState.players[uid].currentBet = 0;
           });
+
+          for (let i = currentState.playerOrder.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [currentState.playerOrder[i], currentState.playerOrder[j]] = [currentState.playerOrder[j], currentState.playerOrder[i]];
+          }
 
           currentState.status = "playing";
           const nextState = startNewRound(currentState);
