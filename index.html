@@ -1293,11 +1293,31 @@
       }
       newState.deck = deck;
 
-      newState.dealerIndex = (newState.dealerIndex + 1) % newState.playerOrder.length;
+      const oldOrder = currentState.playerOrder;
+      const oldDealerIndex = currentState.dealerIndex;
+      let nextDealerId = null;
+      let checkIndex = oldDealerIndex;
+      for (let i = 0; i < oldOrder.length; i++) {
+        checkIndex = (checkIndex + 1) % oldOrder.length;
+        const candidateId = oldOrder[checkIndex];
+        if (activePlayerIds.includes(candidateId)) {
+          nextDealerId = candidateId;
+          break;
+        }
+      }
+
+      const newDealerIndex = newState.playerOrder.indexOf(nextDealerId);
+      newState.dealerIndex = newDealerIndex !== -1 ? newDealerIndex : 0;
       const numPlayers = newState.playerOrder.length;
 
-      const sbIndex = (newState.dealerIndex + 1) % numPlayers;
-      const bbIndex = (newState.dealerIndex + 2) % numPlayers;
+      let sbIndex, bbIndex;
+      if (numPlayers === 2) {
+        sbIndex = newState.dealerIndex;
+        bbIndex = (newState.dealerIndex + 1) % numPlayers;
+      } else {
+        sbIndex = (newState.dealerIndex + 1) % numPlayers;
+        bbIndex = (newState.dealerIndex + 2) % numPlayers;
+      }
       const sbPlayer = newState.players[newState.playerOrder[sbIndex]];
       const bbPlayer = newState.players[newState.playerOrder[bbIndex]];
 
