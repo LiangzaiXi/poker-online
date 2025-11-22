@@ -590,6 +590,9 @@
         waitForHost: "Waiting for host...",
         startGameBtn: "Start Game",
         waitPlayerBtn: "Waiting Players",
+        error_blind_min: "Min 2",
+        error_blind_even: "Even # only",
+        error_chips_too_low: "Must be > BB",
         // Status & Phase
         status_fold: "Fold",
         status_check: "Check",
@@ -714,6 +717,9 @@
         error_join_fail: "参加失敗",
         bet_prefix: "ベット",
         call_prefix: "コール",
+        error_blind_min: "最小2",
+        error_blind_even: "偶数のみ",
+        error_chips_too_low: "BBより大きく",
         // Dynamic Logs
         log_welcome: "システム: テキサスホールデムへようこそ。",
         log_join: "{name} が参加しました。",
@@ -799,6 +805,9 @@
         error_join_fail: "加入失败",
         bet_prefix: "下注",
         call_prefix: "跟注",
+        error_blind_min: "最小为2",
+        error_blind_even: "必须为偶数",
+        error_chips_too_low: "须大于大盲",
         // Dynamic Logs
         log_welcome: "系统: 欢迎游玩德州扑克。",
         log_join: "{name} 加入了房间。",
@@ -1874,30 +1883,9 @@
       updateWaitingRoomUI(state, localId) {
         const hostControls = document.getElementById("wait-host-controls");
         const btnContainer = document.getElementById("host-start-btn-container");
-
         if (state.hostId === localId) {
           hostControls.classList.remove("hidden");
-          const bbInput = document.getElementById("setting-big-blind");
-          const chipsInput = document.getElementById("setting-initial-chips");
-          const sbDisplay = document.getElementById("setting-sb-display");
-
-          if (chipsInput && !chipsInput.oninput) {
-            chipsInput.oninput = () => {
-              chipsInput.value = chipsInput.value.replace(/[^\d]/g, '');
-            };
-          }
-          if (bbInput && !bbInput.oninput) {
-            bbInput.oninput = () => {
-              bbInput.value = bbInput.value.replace(/[^\d]/g, '');
-              const val = parseInt(bbInput.value) || 0;
-              if (sbDisplay) sbDisplay.innerText = Math.floor(val / 2);
-            };
-          }
-
-          const waitMessage = document.getElementById("wait-message");
-          if (waitMessage) waitMessage.classList.add("hidden");
           const playerCount = state.playerOrder.length;
-
           if (playerCount < 2) {
             if (btnContainer) {
               btnContainer.innerHTML = `
@@ -1908,12 +1896,58 @@
           } else {
             if (btnContainer) {
               btnContainer.innerHTML = `
-                  <button id="btn-start-game" onclick="network.startGame()" 
+                  <button id="btn-start-game-action" onclick="network.startGame()" 
                     class="bg-red-600 hover:bg-red-500 text-white font-black text-2xl py-4 px-12 rounded-full shadow-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all">
                     ${t("startGameBtn")} (${playerCount}/10)
                   </button>`;
             }
           }
+          const bbInput = document.getElementById("setting-big-blind");
+          const chipsInput = document.getElementById("setting-initial-chips");
+          const sbDisplay = document.getElementById("setting-sb-display");
+          const errChips = document.getElementById("error-chips-inline");
+          const errBlind = document.getElementById("error-blind-inline");
+          const startBtn = document.getElementById("btn-start-game-action");
+          const validateInputs = () => {
+            let isValid = true;
+            const chipsVal = parseInt(chipsInput.value) || 0;
+            const bbVal = parseInt(bbInput.value) || 0;
+            if (bbVal < 2) {
+              errBlind.innerText = t("error_blind_min");
+              isValid = false;
+            } else if (bbVal % 2 !== 0) {
+              errBlind.innerText = t("error_blind_even");
+              isValid = false;
+            } else {
+              errBlind.innerText = "";
+            }
+            if (sbDisplay) sbDisplay.innerText = Math.floor(bbVal / 2);
+            if (chipsVal <= bbVal) {
+              errChips.innerText = t("error_chips_too_low");
+              isValid = false;
+            } else {
+              errChips.innerText = "";
+            }
+            if (startBtn) {
+              if (!isValid) {
+                startBtn.disabled = true;
+                startBtn.classList.add("opacity-50", "cursor-not-allowed", "grayscale");
+              } else {
+                startBtn.disabled = false;
+                startBtn.classList.remove("opacity-50", "cursor-not-allowed", "grayscale");
+              }
+            }
+          };
+          chipsInput.oninput = () => {
+            chipsInput.value = chipsInput.value.replace(/[^\d]/g, '');
+            validateInputs();
+          };
+
+          bbInput.oninput = () => {
+            bbInput.value = bbInput.value.replace(/[^\d]/g, '');
+            validateInputs();
+          };
+          validateInputs();
         } else {
           hostControls.classList.add("hidden");
           if (btnContainer) btnContainer.innerHTML = "";
