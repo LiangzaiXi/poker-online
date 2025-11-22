@@ -1237,11 +1237,15 @@
 
     function startNewRound(currentState) {
       let newState = JSON.parse(JSON.stringify(currentState));
+      // 确保配置中的盲注是数字类型
       const config = newState.config || { initialChips: 2000, smallBlind: 10, bigBlind: 20 };
+      const bigBlindVal = parseInt(config.bigBlind) || 20;
+      const smallBlindVal = parseInt(config.smallBlind) || 10;
 
       let activePlayerIds = [];
       const allPlayerIds = currentState.playerOrder;
 
+      // 1. 筛选存活玩家
       allPlayerIds.forEach(uid => {
         if (newState.players[uid].chips > 0) activePlayerIds.push(uid);
         else {
@@ -1250,6 +1254,7 @@
         }
       });
 
+      // 2. 如果只剩1人，游戏结束
       if (activePlayerIds.length < 2) {
         const winnerId = activePlayerIds.length > 0 ? activePlayerIds[0] : null;
         const winnerName = winnerId ? newState.players[winnerId].name : "No one";
@@ -1276,27 +1281,30 @@
           currentPlayerIndex: -1,
           currentMaxBet: 0,
           phase: "waiting",
-          lastRaiseAmount: config.bigBlind,
+          lastRaiseAmount: bigBlindVal,
           deck: [],
           logs: newLogs,
           highlightWinner: winnerId,
           highlightCards: [],
           nextRoundTimer: 0,
           nextPhaseTimer: 0,
+          lastAllInPlayer: null
         };
       }
 
+      // 3. 初始化新回合状态
       newState.playerOrder = activePlayerIds;
       newState.communityCards = [];
       newState.pot = 0;
       newState.currentMaxBet = 0;
-      newState.lastRaiseAmount = config.bigBlind;
+      newState.lastRaiseAmount = bigBlindVal;
       newState.phase = "preflop";
       newState.playersActed = [];
       newState.highlightWinner = null;
       newState.highlightCards = [];
       newState.nextRoundTimer = 0;
       newState.nextPhaseTimer = 0;
+      newState.lastAllInPlayer = null; // 重置特效触发器
 
       newState.playerOrder.forEach(uid => {
         const p = newState.players[uid];
@@ -1308,6 +1316,7 @@
         p.bestHand = null;
       });
 
+      // 4. 洗牌
       let deck = [];
       for (let suit of SUITS) {
         for (let rank of RANKS) {
@@ -1316,10 +1325,11 @@
       }
       for (let i = deck.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [deck[i], deck[j]] = [deck[j], deck[i]];
+        [deck[i], deck[j]] = [deck[i], deck[i]];
       }
       newState.deck = deck;
 
+      // 5. 移动 Dealer
       const oldOrder = currentState.playerOrder;
       const oldDealerIndex = currentState.dealerIndex;
       let nextDealerId = null;
@@ -1332,39 +1342,61 @@
           break;
         }
       }
-
       const newDealerIndex = newState.playerOrder.indexOf(nextDealerId);
       newState.dealerIndex = newDealerIndex !== -1 ? newDealerIndex : 0;
       const numPlayers = newState.playerOrder.length;
 
+      // 6. 确定大小盲位置 (2人局特殊规则)
       let sbIndex, bbIndex;
       if (numPlayers === 2) {
-        sbIndex = newState.dealerIndex;
+        sbIndex = newState.dealerIndex; // Heads-up: Dealer is SB
         bbIndex = (newState.dealerIndex + 1) % numPlayers;
       } else {
         sbIndex = (newState.dealerIndex + 1) % numPlayers;
         bbIndex = (newState.dealerIndex + 2) % numPlayers;
       }
+
       const sbPlayer = newState.players[newState.playerOrder[sbIndex]];
       const bbPlayer = newState.players[newState.playerOrder[bbIndex]];
 
-      const sbAmount = Math.min(config.smallBlind, sbPlayer.chips);
+      // --- 扣除小盲注 ---
+      // 强制计算：如果有 100，SB是10，取10。如果有 5，SB是10，取5 (All-in)。
+      const sbAmount = Math.min(smallBlindVal, sbPlayer.chips);
       sbPlayer.chips -= sbAmount;
       sbPlayer.currentBet = sbAmount;
-      sbPlayer.status = sbPlayer.chips === 0 ? "status_all_in" : "status_small_blind";
+      
+      if (sbPlayer.chips === 0) {
+        sbPlayer.status = "status_all_in";
+        newState.lastAllInPlayer = sbPlayer.uid + "_" + Date.now(); // 触发特效
+      } else {
+        sbPlayer.status = "status_small_blind";
+      }
 
-      const bbAmount = Math.min(config.bigBlind, bbPlayer.chips);
+      // --- 扣除大盲注 (修复核心) ---
+      // 逻辑：哪怕他只有 15 (大盲20)，Math.min(20, 15) 也会返回 15，让他 All-in。
+      const bbAmount = Math.min(bigBlindVal, bbPlayer.chips);
       bbPlayer.chips -= bbAmount;
       bbPlayer.currentBet = bbAmount;
-      bbPlayer.status = bbPlayer.chips === 0 ? "status_all_in" : "status_big_blind";
 
+      if (bbPlayer.chips === 0) {
+        bbPlayer.status = "status_all_in";
+        newState.lastAllInPlayer = bbPlayer.uid + "_" + Date.now(); // 触发特效
+      } else {
+        bbPlayer.status = "status_big_blind";
+      }
+
+      // 设置底池和当前最大下注
       newState.pot = sbAmount + bbAmount;
-      newState.currentMaxBet = config.bigBlind;
+      // 关键点：即使大盲玩家 All-in 了（比如只下了 15），当前桌面的“标准注额”依然是大盲注（20）
+      // 这意味着后续玩家如果要 Call，必须 Call 到 20，而不是 15。
+      newState.currentMaxBet = bigBlindVal;
 
+      // 7. 发牌
       for (let i = 0; i < 2; i++) {
         for (let uid of newState.playerOrder) newState.players[uid].holeCards.push(newState.deck.pop());
       }
 
+      // 8. 确定行动者 (大盲注的下一位)
       let nextIdx = (bbIndex + 1) % numPlayers;
       let loopCount = 0;
       while (loopCount < numPlayers) {
@@ -1375,6 +1407,7 @@
       }
       newState.currentPlayerIndex = nextIdx;
 
+      // 9. 检查自动 Showdown (如果除了 All-in 玩家外只剩0-1人)
       const activePlayersInGame = newState.playerOrder.map(uid => newState.players[uid]).filter(p => !p.folded);
       const playersWithChips = activePlayersInGame.filter(p => p.chips > 0);
       if (activePlayersInGame.length >= 2 && playersWithChips.length <= 1) {
