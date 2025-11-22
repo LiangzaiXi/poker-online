@@ -892,6 +892,7 @@
 
     function processAction(currentState, actingUserId, action, amount = 0) {
       let newState = JSON.parse(JSON.stringify(currentState));
+      // Fix: Ensure config is present, otherwise use current state variables to guess or default safely
       const config = newState.config || { bigBlind: 20 };
       let player = newState.players[actingUserId];
 
@@ -931,6 +932,8 @@
 
         if (actualAmount <= newState.currentMaxBet && actualAmount < player.chips) return currentState;
         const extraRaise = actualAmount - newState.currentMaxBet;
+
+        // Use the state's lastRaiseAmount directly to avoid config sync issues
         if (extraRaise < newState.lastRaiseAmount && actualAmount < player.chips) return currentState;
 
         let isAllIn = raiseAmount >= player.chips;
@@ -973,10 +976,23 @@
         const matchBet = p.currentBet === newState.currentMaxBet;
         const hasActed = newState.playersActed.includes(p.uid);
         if (isAllIn) return true;
+
+        // --- FIX START: Robust Big Blind Index Calculation ---
+        // Check if it's Preflop AND the betting level matches the Big Blind (no raises yet)
         if (newState.phase === 'preflop' && newState.currentMaxBet === config.bigBlind) {
-          const bbIndex = (newState.dealerIndex + 2) % newState.playerOrder.length;
+          let bbIndex;
+          // Correctly calculate BB index for 2 players vs 3+ players
+          if (newState.playerOrder.length === 2) {
+            bbIndex = (newState.dealerIndex + 1) % 2;
+          } else {
+            bbIndex = (newState.dealerIndex + 2) % newState.playerOrder.length;
+          }
+
+          // If player is BB, they MUST have acted (even if they just Check)
           if (p.uid === newState.playerOrder[bbIndex] && !hasActed) return false;
         }
+        // --- FIX END ---
+
         return hasActed && matchBet;
       });
 
