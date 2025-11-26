@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ĐỊT MẸ MÀY - Rage Release</title>
+    <title>ĐỊT MẸ MÀY - Balanced Hitbox</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Roboto:wght@900&display=swap');
@@ -110,6 +110,7 @@
         <button id="start-btn" class="btn bg-red-600 hover:bg-red-700 text-white font-black py-4 px-12 rounded-full text-2xl border-4 border-red-800 shadow-[0_0_20px_rgba(255,0,0,0.5)]">
             BẮT ĐẦU
         </button>
+        <p class="mt-4 text-xs text-gray-500">🔊 Sound On (Recomended)</p>
     </div>
 
     <!-- HUD -->
@@ -174,6 +175,9 @@
         let combo = 0;
         let comboTimer = null;
 
+        // Sound Audio Context
+        let audioCtx;
+
         // Assets
         const enemies = [];
         const particles = [];
@@ -182,24 +186,24 @@
         
         const enemyEmojis = ['🤬', '🤡', '👺', '🖕', '😏', '🤪', '😈'];
         
-        // --- EXPANDED VIETNAMESE SWEAR WORDS ---
+        // --- VIETNAMESE SWEAR WORDS ---
         const hitWords = [
-            'ĐỊT MẸ!',      // F**k mother
-            'NGU VÃI!',     // So stupid
-            'CÚT ĐI!',      // Get lost / F**k off
-            'CHÓ ĐẺ!',      // Son of a b**ch (dog born)
-            'VÃI LỒN!',     // Holy s**t (vulgar)
-            'MẸ KIẾP!',     // Damn it
-            'KHỐN NẠN!',    // Bastard/Scoundrel
-            'ÓC CHÓ!',      // Dog brain (Idiot)
-            'THẰNG ĐIÊN!',  // Crazy guy
-            'BIẾN!',        // Scram/Disappear
-            'ĐỒ NGU!',      // You idiot
-            'CHẾT ĐI!',     // Die!
-            'ĐÉO!',         // No/Hell no (vulgar)
-            'ĂN CỨT!',      // Eat s**t
-            'MẶT LỒN!',     // C**t face
-            'THẰNG CHÓ!'    // Dog guy
+            'ĐỊT MẸ!',      
+            'NGU VÃI!',     
+            'CÚT ĐI!',      
+            'CHÓ ĐẺ!',      
+            'VÃI LỒN!',     
+            'MẸ KIẾP!',     
+            'KHỐN NẠN!',    
+            'ÓC CHÓ!',      
+            'THẰNG ĐIÊN!',  
+            'BIẾN!',        
+            'ĐỒ NGU!',      
+            'CHẾT ĐI!',     
+            'ĐÉO!',         
+            'ĂN CỨT!',      
+            'MẶT LỒN!',     
+            'THẰNG CHÓ!'    
         ];
         
         function resize() {
@@ -216,6 +220,92 @@
             aimCursor.style.left = mouseX + 'px';
             aimCursor.style.top = mouseY + 'px';
         });
+
+        // --- Sound Manager (Web Audio API) ---
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Generate Smack Sound
+        function playSmackSound() {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            
+            // Impact Noise
+            const bufferSize = audioCtx.sampleRate * 0.1; 
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'lowpass';
+            noiseFilter.frequency.value = 1000;
+
+            const noiseGain = audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(1, t);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(audioCtx.destination);
+            noise.start(t);
+
+            // Punchy Body
+            const osc = audioCtx.createOscillator();
+            osc.type = 'triangle';
+            const baseFreq = 150 + Math.random() * 50; 
+            osc.frequency.setValueAtTime(baseFreq, t);
+            osc.frequency.exponentialRampToValueAtTime(40, t + 0.15);
+
+            const oscGain = audioCtx.createGain();
+            oscGain.gain.setValueAtTime(0.8, t);
+            oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+
+            osc.connect(oscGain);
+            oscGain.connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.2);
+        }
+
+        // Generate Swoosh/Miss Sound
+        function playSwooshSound() {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+
+            const bufferSize = audioCtx.sampleRate * 0.2; 
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.Q.value = 1;
+            filter.frequency.setValueAtTime(600, t);
+            filter.frequency.linearRampToValueAtTime(1200, t + 0.1);
+
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.linearRampToValueAtTime(0.01, t + 0.15);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+            noise.start(t);
+        }
 
         // Slipper Animation Class
         class SlipperHit {
@@ -271,6 +361,7 @@
         // Click / Slap Handler
         function slap(e) {
             if (!isPlaying) return;
+            initAudio(); 
             
             let x, y;
             if(e.type.includes('touch')) {
@@ -284,8 +375,7 @@
             }
 
             slaps.push(new SlipperHit(x, y));
-            shakeScreen(5);
-
+            
             let hitCount = 0;
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
@@ -293,20 +383,26 @@
                 const dy = y - enemy.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 
-                // EASY MODE HITBOX
-                if (dist < enemy.size + 50) { 
+                // --- BALANCED HITBOX ---
+                // 判定：表情包尺寸 + 15像素
+                // 这允许稍微偏一点点也能打中，手感会比较好
+                if (dist < enemy.size + 15) { 
                     killEnemy(enemy, i);
                     hitCount++;
                 }
             }
 
             if (hitCount === 0) {
-                spawnFloatText(x, y, "HỤT!", '#888', 20); // Missed
+                // MISS
+                playSwooshSound();
+                spawnFloatText(x, y, "HỤT!", '#888', 20); 
                 combo = 0;
                 updateComboUI();
                 aimCursor.style.transform = "translate(-50%, -50%) scale(0.8)";
                 setTimeout(() => aimCursor.style.transform = "translate(-50%, -50%) scale(1)", 100);
             } else {
+                // HIT
+                shakeScreen(5 * hitCount); 
                 aimCursor.style.transform = "translate(-50%, -50%) scale(1.5)";
                 setTimeout(() => aimCursor.style.transform = "translate(-50%, -50%) scale(1)", 100);
             }
@@ -322,7 +418,6 @@
                 this.y = canvas.height + 50; 
                 this.emoji = enemyEmojis[Math.floor(Math.random() * enemyEmojis.length)];
                 
-                // EASY MODE PHYSICS
                 this.vx = (Math.random() - 0.5) * 3; 
                 this.vy = -(Math.random() * 4 + 10); 
                 this.gravity = 0.18; 
@@ -410,6 +505,9 @@
             score++;
             scoreEl.innerText = score;
             
+            // PLAY SOUND
+            playSmackSound();
+
             // Rage accumulation
             rage = Math.min(100, rage + 8); 
             updateRage();
@@ -534,6 +632,7 @@
         }
 
         function startGame() {
+            initAudio(); // Initialize Audio Context on user gesture
             isPlaying = true;
             score = 0;
             rage = 0;
