@@ -2101,9 +2101,12 @@
             updateWaitingRoomUI(state, localId) {
                 const hostControls = document.getElementById("wait-host-controls");
                 const btnContainer = document.getElementById("host-start-btn-container");
+                const waitMessage = document.getElementById("wait-message");
 
                 if (state.hostId === localId) {
                     hostControls.classList.remove("hidden");
+                    if (waitMessage) waitMessage.classList.add("hidden");
+
                     const playerCount = state.playerOrder.length;
                     if (playerCount < 2) {
                         if (btnContainer) {
@@ -2177,7 +2180,6 @@
                     if (btnContainer) btnContainer.innerHTML = "";
                     const hostPlayer = state.players[state.hostId];
                     const hostName = hostPlayer ? hostPlayer.name : "Host";
-                    const waitMessage = document.getElementById("wait-message");
                     if (waitMessage) {
                         waitMessage.classList.remove("hidden");
                         waitMessage.innerText = `${t("waitForHost")} (${hostName})`;
@@ -3110,6 +3112,3 @@
 </body>
 
 </html>
-
-
-
