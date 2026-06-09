@@ -192,8 +192,7 @@
             line-height: 1.4;
             width: max-content;
             max-width: 320px;
-            min-width: 120px;
-            text-align: left;
+            text-align: center;
             white-space: normal;
             word-break: normal;
             overflow-wrap: break-word;
@@ -608,8 +607,13 @@
         </div>
         <div id="bottom-bar"
             class="bg-gray-900 p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.5)] z-20 border-t border-gray-800 relative z-50">
+            <div id="log-resizer"
+                class="h-3 w-full bg-gray-800 hover:bg-gray-600 cursor-ns-resize flex items-center justify-center rounded-t-md border border-gray-700 border-b-0 transition-colors"
+                style="margin-bottom: -1px;">
+                <div class="w-12 h-1 bg-gray-500 rounded-full"></div>
+            </div>
             <div id="game-log"
-                class="h-16 overflow-y-auto text-xs text-gray-500 mb-3 font-mono bg-gray-950 p-2 rounded border border-gray-800 scroll-smooth leading-5">
+                class="h-24 overflow-y-auto text-xs text-gray-500 mb-3 font-mono bg-gray-950 p-2 rounded-b-md border border-gray-800 scroll-smooth leading-5">
                 <div data-i18n="log_welcome">System: Welcome to Texas Hold'em.</div>
             </div>
             <div id="chat-bar" class="flex gap-2 mb-3">
@@ -1074,6 +1078,11 @@
             if (network) {
                 network.renderRoomList();
             }
+        };
+        window.getPlayerColor = function (uid) {
+            let hash = 0;
+            for (let i = 0; i < uid.length; i++) hash = uid.charCodeAt(i) + ((hash << 5) - hash);
+            return `hsl(${Math.abs(hash) % 360}, 80%, 65%)`;
         };
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const SUITS = ["♠", "♥", "♣", "♦"];
@@ -1723,6 +1732,11 @@
                     else if (logKey === "log_raise") this.sound.playRaise();
                     if (["log_phase_flop", "log_phase_turn", "log_phase_river"].includes(logKey)) this.sound.playCard();
                 }
+                const newChats = state.chatMessages || [];
+                const oldChats = this.lastState?.chatMessages || [];
+                if (newChats.length > 0 && newChats[newChats.length - 1].id !== oldChats[oldChats.length - 1]?.id) {
+                    this.sound.playChat();
+                }
                 this.highlightCards = new Set(state.highlightCards || []);
                 const playerCount = state.playerOrder ? state.playerOrder.length : 0;
                 const countEl = document.getElementById("active-players-count");
@@ -1769,6 +1783,11 @@
                     let displayMsg = logStr;
                     try {
                         const logObj = JSON.parse(logStr);
+                        if (logObj.isChat) {
+                            const pName = state.players[logObj.uid]?.name || "Player";
+                            const pColor = window.getPlayerColor(logObj.uid);
+                            return `<div style="color: ${pColor}">[Chat] ${pName}: ${logObj.text}</div>`;
+                        }
                         if (logObj.key) {
                             displayMsg = t(logObj.key, logObj.args);
                             if (logObj.key === "log_showdown_result") {
@@ -1878,6 +1897,9 @@
                                 .slice(-1)[0];
                         if (latest) {
                             bubble.innerText = latest.text;
+                            bubble.innerText = latest.text;
+                            bubble.style.color = window.getPlayerColor(p.uid);
+                            bubble.classList.remove("hidden");
                             bubble.classList.remove("hidden");
                         } else {
                             bubble.classList.add("hidden");
@@ -2200,6 +2222,7 @@
                         ts: Date.now()
                     };
                     state.chatMessages.push(msg);
+                    state.logs.push(JSON.stringify({ isChat: true, uid: msg.uid, text: msg.text }));
                     if (state.chatMessages.length > 30) {
                         state.chatMessages.shift();
                     }
@@ -2255,6 +2278,7 @@
                         ts: Date.now()
                     };
                     state.chatMessages.push(msg);
+                    state.logs.push(JSON.stringify({ isChat: true, uid: msg.uid, text: msg.text }));
                     if (state.chatMessages.length > 30) state.chatMessages.shift();
                     this.broadcastState(state);
                     setTimeout(() => {
@@ -2899,7 +2923,7 @@
                                     state: state
                                 });
                             });
-                            setTimeout(() => this.executeLeaveCleanup(), 500);
+                            setTimeout(() => this.executeLeaveCleanup(true), 500);
                             return;
                         }
                     }
@@ -2912,7 +2936,7 @@
                 if (this.broadcastInterval) clearInterval(this.broadcastInterval);
                 if (this.nextPhaseTimeout) clearTimeout(this.nextPhaseTimeout);
                 if (this.nextRoundTimeout) clearTimeout(this.nextRoundTimeout);
-                if (this.isHost && this.currentRoomId !== "LOCAL_VS_AI" && this.mqttClient) {
+                if (this.isHost && this.currentRoomId !== "LOCAL_VS_AI" && this.mqttClient && !isTransferring) {
                     this.mqttClient.publish('texas-holdem-p2p-rooms-v1', JSON.stringify({
                         id: this.currentRoomId,
                         lastSeen: 0
@@ -3125,6 +3149,11 @@
                 if (this.ctx.state === "suspended") {
                     this.ctx.resume();
                 }
+            }
+            playChat() {
+                if (!this.enabled) return;
+                this.playTone(600, "sine", 0.05, 0.05);
+                this.playTone(800, "sine", 0.05, 0.05, 0.05);
             }
             playTone(freq, type, duration, vol = 0.1, when = 0) {
                 if (!this.enabled) return;
@@ -3497,13 +3526,11 @@
         async function startApp() {
             document.body.insertAdjacentHTML('afterbegin', '<div id="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#172554;z-index:9999;display:flex;justify-content:center;align-items:center;color:white;font-size:20px;">Loading...</div>');
             try {
-                const langPromise = fetch('https://api.db-ip.com/v2/free/self').then(r => r.json()).catch(() => ({ countryCode: 'EN' }));
                 network.init();
-                const data = await langPromise;
-                const country = data.countryCode;
+                const browserLang = navigator.language || navigator.userLanguage;
                 let targetLang = 'en';
-                if (country === 'JP') targetLang = 'ja';
-                else if (country === 'CN') targetLang = 'zh';
+                if (browserLang.toLowerCase().includes('zh')) targetLang = 'zh';
+                else if (browserLang.toLowerCase().includes('ja')) targetLang = 'ja';
                 updateLanguage(targetLang);
                 const selectBox = document.getElementById('language-selector');
                 if (selectBox) {
@@ -3516,7 +3543,46 @@
                 const loadingDiv = document.getElementById('loading');
                 if (loadingDiv) loadingDiv.remove();
             }
+            window.addEventListener('beforeunload', () => {
+                if (network.isHost || network.hostConnection) {
+                    network.leaveRoom();
+                }
+            });
         }
+        (function initLogResizer() {
+            const logResizer = document.getElementById("log-resizer");
+            const gameLog = document.getElementById("game-log");
+            let isResizingLog = false;
+            let startY = 0;
+            let startHeight = 0;
+            const startDrag = (y) => {
+                isResizingLog = true;
+                startY = y;
+                startHeight = gameLog.getBoundingClientRect().height;
+                document.body.style.cursor = "ns-resize";
+            };
+            const onDrag = (y) => {
+                if (!isResizingLog) return;
+                const newHeight = startHeight + (startY - y);
+                gameLog.style.height = Math.max(60, Math.min(newHeight, window.innerHeight * 0.5)) + "px";
+            };
+            const stopDrag = () => {
+                if (isResizingLog) {
+                    isResizingLog = false;
+                    document.body.style.cursor = "";
+                }
+            };
+            if (logResizer) {
+                logResizer.addEventListener("mousedown", (e) => startDrag(e.clientY));
+            }
+            window.addEventListener("mousemove", (e) => onDrag(e.clientY));
+            window.addEventListener("mouseup", stopDrag);
+            if (logResizer) {
+                logResizer.addEventListener("touchstart", (e) => startDrag(e.touches[0].clientY), { passive: true });
+            }
+            window.addEventListener("touchmove", (e) => onDrag(e.touches[0].clientY), { passive: true });
+            window.addEventListener("touchend", stopDrag);
+        })();
         window.addEventListener('DOMContentLoaded', startApp);
     </script>
 </body>
