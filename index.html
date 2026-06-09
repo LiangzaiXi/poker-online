@@ -2184,6 +2184,12 @@
                             }
                         });
                     }
+                    if (stateToSend.deck && stateToSend.deck.length > 0) {
+                        stateToSend.deck = stateToSend.deck.map(c => {
+                            const secureHash = btoa(encodeURIComponent(JSON.stringify(c))).split('').reverse().join('');
+                            return { id: 'hash_' + secureHash };
+                        });
+                    }
                     conn.send({ type: 'STATE_UPDATE', state: stateToSend });
                 });
                 this.gameUI.renderGameState(newState, this.localUserId);
