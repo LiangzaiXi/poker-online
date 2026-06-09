@@ -2121,22 +2121,66 @@
 
             initMQTT() {
                 try {
-                    this.mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+                    // 1. 生成一个随机的 clientId，防止在公共测试服务器上因为 ID 冲突被强行踢下线
+                    const clientId = 'th_client_' + Math.random().toString(16).substring(2, 10);
+
+                    // 2. 添加连接配置：心跳保活(keepalive)和自动重连机制
+                    const options = {
+                        clientId: clientId,
+                        keepalive: 30,         // 每30秒发送一次心跳，防止被 EMQX 清理
+                        reconnectPeriod: 5000, // 断开后5秒自动重连
+                        connectTimeout: 10000  // 连接超时时间
+                    };
+
+                    console.log("正在连接 MQTT 服务器...");
+                    this.mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', options);
+
+                    // 3. 监听连接成功事件
                     this.mqttClient.on('connect', () => {
-                        this.mqttClient.subscribe('texas-holdem-p2p-rooms-v1');
+                        console.log("MQTT 连接成功! ClientID:", clientId);
+                        // 加上错误回调，确认是否真的订阅上了
+                        this.mqttClient.subscribe('texas-holdem-p2p-rooms-v1', (err) => {
+                            if (err) {
+                                console.error("MQTT 订阅房间频道失败:", err);
+                            } else {
+                                console.log("MQTT 订阅房间频道成功!");
+                            }
+                        });
                     });
 
+                    // 4. 增强的异常和状态监听（帮你以后快速排查问题）
+                    this.mqttClient.on('error', (err) => {
+                        console.error("MQTT 发生错误:", err);
+                    });
+
+                    this.mqttClient.on('offline', () => {
+                        console.warn("MQTT 掉线，处于离线状态...");
+                    });
+
+                    this.mqttClient.on('reconnect', () => {
+                        console.log("MQTT 正在尝试重新连接...");
+                    });
+
+                    this.mqttClient.on('close', () => {
+                        console.warn("MQTT 连接已物理关闭");
+                    });
+
+                    // 5. 原有的消息处理逻辑保持不变
                     this.mqttClient.on('message', (topic, message) => {
                         if (topic === 'texas-holdem-p2p-rooms-v1') {
                             try {
                                 const roomData = JSON.parse(message.toString());
                                 roomData.lastSeen = Date.now();
                                 this.activeRooms[roomData.id] = roomData;
-                            } catch (e) { }
+                                // 你可以选择在这里加一行 log 看别人建的房间数据有没有推过来
+                                // console.log("收到房间广播:", roomData.id);
+                            } catch (e) {
+                                // 忽略非 JSON 格式的脏数据
+                            }
                         }
                     });
                 } catch (e) {
-                    console.error("MQTT Connect Error:", e);
+                    console.error("MQTT 初始化严重异常:", e);
                 }
             }
 
@@ -2234,7 +2278,15 @@
                 this.currentRoomId = roomId;
 
                 const hostPeerId = `th-p2p-room-${roomId}`;
-                this.peer = new Peer(hostPeerId);
+                this.peer = new Peer(hostPeerId, {
+                    debug: 2, // 开启日志：2打印警告和错误，3打印所有信息
+                    config: {
+                        'iceServers': [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun1.l.google.com:19302' }
+                        ]
+                    }
+                });
 
                 // 【修复2：超时防卡死】如果校园网/公司网屏蔽了连接，8秒后强制解开按钮，避免永远灰显
                 let connectionTimeout = setTimeout(() => {
@@ -2245,7 +2297,7 @@
                         this.isHost = false;
                         this.currentRoomId = null;
                     }
-                }, 8000);
+                }, 15000);
 
                 this.peer.on('open', (id) => {
                     clearTimeout(connectionTimeout); // 连接成功，取消超时报警
@@ -2369,7 +2421,15 @@
                     targetPeerId = this.activeRooms[roomId].peerId;
                 }
 
-                this.peer = new Peer();
+                this.peer = new Peer({
+                    debug: 2, // 开启日志：2打印警告和错误，3打印所有信息
+                    config: {
+                        'iceServers': [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun1.l.google.com:19302' }
+                        ]
+                    }
+                });
 
                 // 【修复2：超时防卡死】同样为加入房间增加 8 秒超时检测
                 let connectionTimeout = setTimeout(() => {
@@ -2379,7 +2439,7 @@
                         if (this.peer) this.peer.destroy();
                         this.currentRoomId = null;
                     }
-                }, 8000);
+                }, 15000);
 
                 this.peer.on('open', (id) => {
                     this.hostConnection = this.peer.connect(targetPeerId, {
