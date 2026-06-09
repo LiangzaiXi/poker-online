@@ -1792,7 +1792,7 @@
                     document.getElementById("raise-slider-container").classList.remove("hidden");
                     slider.min = minPossibleActionRaise;
                     slider.max = maxPossibleActionRaise;
-                    slider.step = 1;
+                    slider.step = state.config?.bigBlind || 20;
                     if (!this.isSliderReset) {
                         slider.value = slider.min;
                         this.isSliderReset = true;
@@ -1813,11 +1813,12 @@
             adjustRaise(direction) {
                 const slider = document.getElementById("raise-slider");
                 if (!slider || slider.disabled) return;
+                const bigBlind = parseInt(this.lastState.config?.bigBlind) || 20;
                 const currentVal = parseInt(slider.value);
-                const step = 1;
                 const min = parseInt(slider.min);
                 const max = parseInt(slider.max);
-                let newVal = currentVal + direction * step;
+                let newVal = currentVal + (direction * bigBlind);
+                newVal = Math.round(newVal / bigBlind) * bigBlind;
                 if (newVal < min) newVal = min;
                 if (newVal > max) newVal = max;
                 slider.value = newVal;
