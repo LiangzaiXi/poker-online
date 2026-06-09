@@ -633,7 +633,6 @@
                 error_blind_min: "Min 2",
                 error_blind_even: "Even # only",
                 error_chips_too_low: "Must be > BB",
-                // Status & Phase
                 status_fold: "Fold",
                 status_check: "Check",
                 status_call: "Call",
@@ -648,7 +647,6 @@
                 phase_turn: "Turn",
                 phase_river: "River",
                 phase_showdown: "Showdown",
-                // Hands
                 hand_high_card: "High Card",
                 hand_pair: "Pair",
                 hand_two_pairs: "Two Pairs",
@@ -658,7 +656,6 @@
                 hand_full_house: "Full House",
                 hand_four_of_a_kind: "Four of a Kind",
                 hand_straight_flush: "Straight Flush",
-                // Messages
                 msg_your_turn: "Your Turn",
                 msg_thinking: " Thinking",
                 msg_winner: "Winner!",
@@ -672,7 +669,6 @@
                 error_join_fail: "Join Failed",
                 bet_prefix: "Bet",
                 call_prefix: "Call",
-                // Dynamic Logs
                 log_welcome: "System: Welcome to Texas Hold'em.",
                 log_join: "{name} joined.",
                 log_leave: "{name} left.",
@@ -774,7 +770,6 @@
                 error_blind_min: "最小2",
                 error_blind_even: "偶数のみ",
                 error_chips_too_low: "BBより大きく",
-                // Dynamic Logs
                 log_welcome: "システム: テキサスホールデムへようこそ。",
                 log_join: "{name} が参加しました。",
                 log_leave: "{name} が退出しました。",
@@ -876,7 +871,6 @@
                 error_blind_min: "最小为2",
                 error_blind_even: "必须为偶数",
                 error_chips_too_low: "须大于大盲",
-                // Dynamic Logs
                 log_welcome: "系统: 欢迎游玩德州扑克。",
                 log_join: "{name} 加入了房间。",
                 log_leave: "{name} 离开了房间。",
@@ -915,7 +909,6 @@
 
         let currentLang = "en";
 
-        // Enhanced t() to support argument replacement
         const t = (key, args = {}) => {
             let text = TRANSLATIONS[currentLang][key] || key;
             Object.keys(args).forEach(argKey => {
@@ -924,7 +917,6 @@
             return text;
         };
 
-        // Helper to create structured log objects (saved as JSON string)
         const createLog = (key, args = {}) => {
             return JSON.stringify({ key, args });
         };
@@ -944,7 +936,6 @@
             }
         };
 
-        // --- CONSTANTS & UTILS ---
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const SUITS = ["♠", "♥", "♣", "♦"];
         const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
@@ -959,14 +950,9 @@
             showdown: "phase_showdown",
         };
 
-        // --- SUPABASE GLOBALS ---
-        let supabaseClient;
         let localUserId = null;
         let localPlayerName = "Guest";
         let sound;
-
-        // --- GAME LOGIC (PURE FUNCTIONS) ---
-        // (逻辑保持不变，确保与 UI 和数据结构兼容)
 
         function processAction(currentState, actingUserId, action, amount = 0) {
             let newState = JSON.parse(JSON.stringify(currentState));
@@ -1062,7 +1048,6 @@
                     }
                     if (p.uid === newState.playerOrder[bbIndex] && !hasActed) return false;
                 }
-
                 return hasActed && matchBet;
             });
 
@@ -1306,9 +1291,7 @@
                 let newLogs = [...newState.logs];
                 newLogs.push(createLog("log_game_over", { name: winnerName }));
 
-                // 1. 先重置现有的玩家
                 const resetPlayers = {};
-                // 注意：这里使用 newState.playerOrder 来保证顺序，但也要注意如果有玩家中途离开的情况
                 let currentOrder = [...newState.playerOrder];
 
                 currentOrder.forEach(uid => {
@@ -1316,7 +1299,7 @@
                     if (p) {
                         resetPlayers[uid] = {
                             ...p,
-                            chips: config.initialChips, // 重置筹码
+                            chips: config.initialChips,
                             holeCards: [],
                             folded: false,
                             currentBet: 0,
@@ -1327,24 +1310,16 @@
                     }
                 });
 
-                // 2. 处理旁观者 (Spectator Promotion Logic)
                 let nextSpectators = [];
                 let currentSpectators = currentState.spectators || [];
 
-                // 遍历所有旁观者
                 currentSpectators.forEach(spec => {
-                    // 兼容旧数据：如果是纯字符串ID，转为对象结构 (防止报错)
                     const specObj = typeof spec === 'object' ? spec : { uid: spec, name: "Spectator" };
-
-                    // 检查当前玩家总数是否已满 10 人
                     if (currentOrder.length < 10) {
-                        // --- 晋升为玩家 ---
                         const newUid = specObj.uid;
-
-                        // 创建新玩家对象
                         resetPlayers[newUid] = {
                             uid: newUid,
-                            id: currentOrder.length, // 分配新 ID
+                            id: currentOrder.length,
                             name: specObj.name,
                             chips: config.initialChips,
                             holeCards: [],
@@ -1354,13 +1329,9 @@
                             status: "waiting",
                             bestHand: null
                         };
-
-                        // 加入顺序列表
                         currentOrder.push(newUid);
                         newLogs.push(createLog("log_join", { name: specObj.name + " (Promoted)" }));
                     } else {
-                        // --- 仍然是旁观者 ---
-                        // 房间满了，只能继续旁观
                         nextSpectators.push(specObj);
                     }
                 });
@@ -1370,9 +1341,8 @@
                     hostId: newState.hostId,
                     config: config,
                     players: resetPlayers,
-                    playerOrder: currentOrder, // 包含旧玩家 + 新晋升的玩家
-                    spectators: nextSpectators, // 剩下挤不进去的旁观者
-
+                    playerOrder: currentOrder,
+                    spectators: nextSpectators,
                     communityCards: [],
                     pot: 0,
                     dealerIndex: 0,
@@ -1492,9 +1462,6 @@
             }
             newState.currentPlayerIndex = nextIdx;
 
-            const activePlayersInGame = newState.playerOrder.map(uid => newState.players[uid]).filter(p => !p.folded);
-            const playersWithChips = activePlayersInGame.filter(p => p.chips > 0);
-
             newState.logs.push(createLog("log_new_round"));
             return newState;
         }
@@ -1529,6 +1496,108 @@
             initSound() {
                 this.sound.init();
                 sound = this.sound;
+            }
+
+            // 【完全修复作用域错误】：将 updateWaitingRoomUI 放回 GameUIManager 内，彻底杜绝 not a function 报错
+            updateWaitingRoomUI(state, localId) {
+                const hostControls = document.getElementById("wait-host-controls");
+                const btnContainer = document.getElementById("host-start-btn-container");
+                const waitMessage = document.getElementById("wait-message");
+
+                if (state.hostId === localId) {
+                    hostControls.classList.remove("hidden");
+                    if (waitMessage) waitMessage.classList.add("hidden");
+
+                    const btnAddAi = document.getElementById("btn-add-ai");
+                    const btnRemoveAi = document.getElementById("btn-remove-ai");
+                    if (btnAddAi) btnAddAi.classList.remove("hidden");
+                    if (btnRemoveAi) btnRemoveAi.classList.remove("hidden");
+
+                    const playerCount = state.playerOrder.length;
+                    if (playerCount < 2) {
+                        if (btnContainer) {
+                            btnContainer.innerHTML = `
+                  <button disabled class="bg-gray-500 text-gray-300 font-black text-2xl py-4 px-12 rounded-full shadow-none border-b-4 border-gray-700 cursor-not-allowed opacity-50">
+                    ${t("waitPlayerBtn")} (${playerCount}/10)
+                  </button>`;
+                        }
+                    } else {
+                        if (btnContainer) {
+                            btnContainer.innerHTML = ` 
+                              <button id="btn-start-game" onclick="network.startGame()" 
+                                class="bg-red-600 hover:bg-red-500 text-white font-black text-2xl py-4 px-12 rounded-full shadow-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all">
+                                ${t("startGameBtn")} (${playerCount}/10)
+                              </button>`;
+                        }
+                    }
+                    const bbInput = document.getElementById("setting-big-blind");
+                    const chipsInput = document.getElementById("setting-initial-chips");
+                    const sbDisplay = document.getElementById("setting-sb-display");
+                    const errChips = document.getElementById("error-chips-inline");
+                    const errBlind = document.getElementById("error-blind-inline");
+                    const startBtn = document.getElementById("btn-start-game");
+
+                    const validateInputs = () => {
+                        let isValid = true;
+                        const chipsVal = parseInt(chipsInput.value) || 0;
+                        const bbVal = parseInt(bbInput.value) || 0;
+                        if (bbVal < 2) {
+                            errBlind.innerText = t("error_blind_min");
+                            isValid = false;
+                        } else if (bbVal % 2 !== 0) {
+                            errBlind.innerText = t("error_blind_even");
+                            isValid = false;
+                        } else {
+                            errBlind.innerText = "";
+                        }
+                        if (sbDisplay) sbDisplay.innerText = Math.floor(bbVal / 2);
+                        if (chipsVal <= bbVal) {
+                            errChips.innerText = t("error_chips_too_low");
+                            isValid = false;
+                        } else {
+                            errChips.innerText = "";
+                        }
+                        if (startBtn) {
+                            if (!isValid) {
+                                startBtn.disabled = true;
+                                startBtn.classList.add("opacity-50", "cursor-not-allowed", "grayscale");
+                            } else {
+                                startBtn.disabled = false;
+                                startBtn.classList.remove("opacity-50", "cursor-not-allowed", "grayscale");
+                            }
+                        }
+                    };
+
+                    if (chipsInput) {
+                        chipsInput.oninput = () => {
+                            chipsInput.value = chipsInput.value.replace(/[^\d]/g, '');
+                            validateInputs();
+                        };
+                    }
+
+                    if (bbInput) {
+                        bbInput.oninput = () => {
+                            bbInput.value = bbInput.value.replace(/[^\d]/g, '');
+                            validateInputs();
+                        };
+                    }
+                    validateInputs();
+                } else {
+                    hostControls.classList.add("hidden");
+                    if (btnContainer) btnContainer.innerHTML = "";
+
+                    const btnAddAi = document.getElementById("btn-add-ai");
+                    const btnRemoveAi = document.getElementById("btn-remove-ai");
+                    if (btnAddAi) btnAddAi.classList.add("hidden");
+                    if (btnRemoveAi) btnRemoveAi.classList.add("hidden");
+
+                    const hostPlayer = state.players[state.hostId];
+                    const hostName = hostPlayer ? hostPlayer.name : "Host";
+                    if (waitMessage) {
+                        waitMessage.classList.remove("hidden");
+                        waitMessage.innerText = `${t("waitForHost")} (${hostName})`;
+                    }
+                }
             }
 
             renderGameState(state, localId) {
@@ -1630,7 +1699,6 @@
                 if (localPlayer) {
                     const lastLog = state.logs.length > 0 ? state.logs[state.logs.length - 1] : "";
                     const isChampion = state.status === "waiting" && state.highlightWinner === localId && lastLog.includes("log_game_over");
-
                     const isEliminated = localPlayer.status === "status_eliminated" && localPlayer.chips === 0;
 
                     if (isChampion) {
@@ -1655,7 +1723,8 @@
                 const waitOverlay = document.getElementById("waiting-room-overlay");
                 if (state.status === "waiting") {
                     waitOverlay.classList.remove("hidden");
-                    network.updateWaitingRoomUI(state, localId);
+                    // 【关键修复】这里改为调用内部的方法，而不是调用全局的 network
+                    this.updateWaitingRoomUI(state, localId);
                 } else {
                     waitOverlay.classList.add("hidden");
                 }
@@ -1796,10 +1865,8 @@
                 const localPlayer = state.players[this.localPlayerId];
                 const controls = document.getElementById("player-controls");
 
-                // 如果本地用户不在 players 列表中（即旁观者），隐藏所有操作按钮
                 if (!localPlayer) {
                     controls.classList.add("opacity-50", "pointer-events-none", "translate-y-2");
-                    // 可以额外显示一个状态，例如将 check 按钮文本改为 "SPECTATING"
                     const btnCheck = document.getElementById("btn-check");
                     if (btnCheck) btnCheck.innerText = "SPECTATING";
                     btnCheck.classList.remove("hidden");
@@ -1966,24 +2033,20 @@
                 const player = state.players[aiUid];
                 const diff = state.currentMaxBet - player.currentBet;
 
-                // 模拟 AI 思考延迟 (1.5秒 - 3秒随机)
                 setTimeout(() => {
                     let action = 'fold';
                     let amount = 0;
 
-                    // 极简 AI 逻辑
                     if (state.phase === 'preflop') {
                         if (diff === 0) action = 'check';
-                        else if (diff <= (state.config?.bigBlind || 20) * 2) action = 'call'; // 愿意跟小注
+                        else if (diff <= (state.config?.bigBlind || 20) * 2) action = 'call';
                         else {
-                            // 瞎子发牌，如果有 A、K、Q 且底池不大就跟，否则弃牌
                             const hasHighCard = player.holeCards.some(c => c.value >= 12);
                             action = hasHighCard ? 'call' : 'fold';
                         }
                     } else {
-                        // Flop 之后评估牌力
                         const evalResult = HandEvaluator.evaluate(player.holeCards, state.communityCards);
-                        if (evalResult.score > 200000000) { // 至少是对子以上
+                        if (evalResult.score > 200000000) {
                             if (diff === 0) {
                                 action = 'raise';
                                 amount = (state.config?.bigBlind || 20) * 2;
@@ -1996,16 +2059,13 @@
                         }
                     }
 
-                    // 防呆设计：如果钱不够 call，就当作 all-in
                     if (action === 'call' && diff >= player.chips) action = 'call';
                     if (action === 'raise') amount = player.currentBet + amount;
 
-                    // 如果决定 all-in
                     if (amount >= player.chips + player.currentBet && action === 'raise') {
                         amount = player.chips + player.currentBet;
                     }
 
-                    // 房主执行状态推进
                     hostCallback(aiUid, action, amount);
                 }, 1500 + Math.random() * 1500);
             }
@@ -2019,28 +2079,26 @@
                 this.currentRoomId = null;
                 this.isHost = false;
 
-                // P2P 与通信
                 this.peer = null;
                 this.connections = [];
                 this.hostConnection = null;
                 this.mqttClient = null;
 
-                // 房间列表缓存
                 this.activeRooms = {};
                 this.roomListInterval = null;
                 this.broadcastInterval = null;
 
-                // 计时器与状态控制
                 this.nextPhaseTimeout = null;
                 this.nextRoundTimeout = null;
                 this.aiThinkingUid = null;
             }
 
             init() {
-                let storedId = localStorage.getItem("poker_user_id");
+                // 【核心修复】改为 sessionStorage，彻底解决自己不在中间的问题
+                let storedId = sessionStorage.getItem("poker_user_id");
                 if (!storedId) {
                     storedId = "user_" + Math.random().toString(36).substr(2, 9);
-                    localStorage.setItem("poker_user_id", storedId);
+                    sessionStorage.setItem("poker_user_id", storedId);
                 }
                 this.localUserId = storedId;
                 localUserId = storedId;
@@ -2167,17 +2225,19 @@
                 this.isHost = true;
                 this.currentRoomId = roomId;
 
-                this.peer = new Peer(`th-room-${roomId}-${Math.random().toString(36).substr(2, 4)}`);
+                // 【核心修复】：固定 PeerID，确保就算 MQTT 服务器卡顿，客机也能直接硬连入你的房间！
+                const hostPeerId = `th-p2p-room-${roomId}`;
+                this.peer = new Peer(hostPeerId);
 
                 this.peer.on('open', (id) => {
                     this.disableRoomButtons(false);
-
-                    // 【核心修复】：必须先进入房间（显示DOM），再初始化游戏（计算坐标）
+                    // 【核心修复】：必须先进入房间（显示DOM），再初始化游戏，彻底解决坐标乱跑到左上角的问题
                     this.enterGameRoom();
                     this.initGameState();
 
-                    this.broadcastInterval = setInterval(() => {
-                        if (this.isHost && this.mqttClient && this.gameUI.lastState) {
+                    // 【核心修复】：不再等 5 秒，创建成功后立即向全网广播房间！
+                    const broadcastRoom = () => {
+                        if (this.isHost && this.mqttClient && this.mqttClient.connected && this.gameUI.lastState) {
                             this.mqttClient.publish('texas-holdem-p2p-rooms-v1', JSON.stringify({
                                 id: this.currentRoomId,
                                 hostName: localPlayerName,
@@ -2186,7 +2246,9 @@
                                 isPlaying: this.gameUI.lastState.status === 'playing'
                             }));
                         }
-                    }, 5000);
+                    };
+                    broadcastRoom();
+                    this.broadcastInterval = setInterval(broadcastRoom, 4000);
                 });
 
                 this.peer.on('connection', (conn) => {
@@ -2200,8 +2262,14 @@
 
                 this.peer.on('error', (err) => {
                     console.error("Peer Error:", err);
-                    document.getElementById("room-error").innerText = "Failed to create room: " + err.type;
+                    if (err.type === 'unavailable-id') {
+                        document.getElementById("room-error").innerText = "Room ID is occupied. Try another one.";
+                    } else {
+                        document.getElementById("room-error").innerText = "Failed to create room: " + err.type;
+                    }
                     this.disableRoomButtons(false);
+                    this.isHost = false;
+                    this.currentRoomId = null;
                 });
             }
 
@@ -2242,11 +2310,10 @@
                     lastAllInPlayer: null
                 };
 
-                // 不再直接赋值 this.gameUI.lastState，统一交由 renderGameState 去处理内部逻辑
                 this.gameUI.renderGameState(state, this.localUserId);
             }
 
-            // 【核心修复】必须传入 newState，禁止隐式引用
+            // 【深拷贝保护】：杜绝 Vue/React 无法监测到引用的问题
             broadcastState(newState) {
                 if (!this.isHost || !newState) return;
 
@@ -2263,7 +2330,6 @@
                     conn.send({ type: 'STATE_UPDATE', state: stateToSend });
                 });
 
-                // 本地渲染，GameUIManager 会自动对比新老状态，从而触发 All-In 弹窗和音效！
                 this.gameUI.renderGameState(newState, this.localUserId);
 
                 this.checkAITurn();
@@ -2275,21 +2341,22 @@
                 const roomId = this.validateInputs();
                 if (!roomId) return;
 
-                const targetRoom = this.activeRooms[roomId];
-                if (!targetRoom || !targetRoom.peerId) {
-                    document.getElementById("room-error").innerText = t("error_room_dead");
-                    return;
-                }
-
                 this.disableRoomButtons(true);
                 this.isHost = false;
                 this.currentRoomId = roomId;
 
+                // 【核心修复：强行直连模式】：就算列表没刷出来，只要房间号对了，直接硬接！
+                let targetPeerId = `th-p2p-room-${roomId}`;
+                if (this.activeRooms[roomId] && this.activeRooms[roomId].peerId) {
+                    targetPeerId = this.activeRooms[roomId].peerId;
+                }
+
                 this.peer = new Peer();
 
                 this.peer.on('open', (id) => {
-                    this.hostConnection = this.peer.connect(targetRoom.peerId, {
-                        metadata: { uid: this.localUserId }
+                    this.hostConnection = this.peer.connect(targetPeerId, {
+                        metadata: { uid: this.localUserId },
+                        reliable: true
                     });
 
                     this.hostConnection.on('open', () => {
@@ -2300,7 +2367,6 @@
 
                     this.hostConnection.on('data', (data) => {
                         if (data.type === 'STATE_UPDATE') {
-                            // 【核心修复】移除手动赋值，交给 renderGameState 处理旧状态比较
                             this.gameUI.renderGameState(data.state, this.localUserId);
                         } else if (data.type === 'ERROR') {
                             alert(data.message);
@@ -2315,8 +2381,14 @@
                 });
 
                 this.peer.on('error', (err) => {
-                    document.getElementById("room-error").innerText = t("error_join_fail");
+                    console.error("Join Error:", err);
+                    if (err.type === 'peer-unavailable') {
+                        document.getElementById("room-error").innerText = "Room does not exist / Host offline.";
+                    } else {
+                        document.getElementById("room-error").innerText = t("error_join_fail");
+                    }
                     this.disableRoomButtons(false);
+                    this.leaveRoom();
                 });
             }
 
@@ -2333,13 +2405,12 @@
             }
 
             handleGuestData(conn, data) {
-                // 【核心修复】强制深拷贝，断绝引用绑定！
                 let state = JSON.parse(JSON.stringify(this.gameUI.lastState));
                 if (!state) return;
 
                 if (data.type === 'JOIN_REQ') {
                     if (state.players[data.uid]) {
-                        // 重连玩家
+                        // 重连
                     } else if (Object.keys(state.players).length >= 10 && state.status === "waiting") {
                         conn.send({ type: 'ERROR', message: t("error_room_full") });
                         return;
@@ -2368,14 +2439,12 @@
                 let state = this.gameUI.lastState;
                 if (!state || state.playerOrder[state.currentPlayerIndex] !== uid) return;
 
-                // processAction 内部自带了深拷贝，所以返回的 nextState 是纯净的新对象
                 let nextState = processAction(state, uid, action, amount);
                 this.broadcastState(nextState);
             }
 
             handlePlayerLeave(uid) {
                 if (!this.isHost || !uid) return;
-                // 【核心修复】深拷贝
                 let state = JSON.parse(JSON.stringify(this.gameUI.lastState));
                 if (!state) return;
 
@@ -2406,7 +2475,6 @@
                 this.isHost = true;
                 this.currentRoomId = "LOCAL_VS_AI";
 
-                // 【核心修复】：同样先进入房间（显示DOM），再初始化游戏
                 this.enterGameRoom();
                 this.initGameState();
 
@@ -2419,13 +2487,13 @@
                     const btnRemoveAi = document.getElementById("btn-remove-ai");
                     if (btnAddAi) btnAddAi.classList.remove("hidden");
                     if (btnRemoveAi) btnRemoveAi.classList.remove("hidden");
-                    this.updateWaitingRoomUI(this.gameUI.lastState, this.localUserId);
+                    // 彻底修复作用域问题
+                    this.gameUI.updateWaitingRoomUI(this.gameUI.lastState, this.localUserId);
                 }, 100);
             }
 
             addAI() {
                 if (!this.isHost) return;
-                // 【核心修复】深拷贝
                 let state = JSON.parse(JSON.stringify(this.gameUI.lastState));
                 if (state.playerOrder.length >= 10 || state.status !== "waiting") return;
 
@@ -2445,12 +2513,10 @@
 
             removeAI() {
                 if (!this.isHost) return;
-                // 深拷贝防止引用污染
                 let state = JSON.parse(JSON.stringify(this.gameUI.lastState));
                 if (state.status !== "waiting") return;
 
                 let aiToRemove = null;
-                // 从后往前找，优先移除最后加入的 AI
                 for (let i = state.playerOrder.length - 1; i >= 0; i--) {
                     let uid = state.playerOrder[i];
                     if (state.players[uid] && state.players[uid].isAI) {
@@ -2493,7 +2559,6 @@
 
             startGame() {
                 if (!this.isHost || !this.gameUI.lastState) return;
-                // 【核心修复】深拷贝
                 let state = JSON.parse(JSON.stringify(this.gameUI.lastState));
                 if (state.status !== "waiting" || state.playerOrder.length < 2) return;
 
@@ -2530,7 +2595,6 @@
                     if (!this.nextPhaseTimeout) {
                         this.nextPhaseTimeout = setTimeout(() => {
                             this.nextPhaseTimeout = null;
-                            // 【核心修复】深拷贝
                             let cur = JSON.parse(JSON.stringify(this.gameUI.lastState));
                             if (cur.nextPhaseTimer > 0) {
                                 cur.nextPhaseTimer = 0;
@@ -2553,109 +2617,6 @@
                                 this.broadcastState(next);
                             }
                         }, state.nextRoundTimer);
-                    }
-                }
-            }
-
-            updateWaitingRoomUI(state, localId) {
-                const hostControls = document.getElementById("wait-host-controls");
-                const btnContainer = document.getElementById("host-start-btn-container");
-                const waitMessage = document.getElementById("wait-message");
-
-                if (state.hostId === localId) {
-                    hostControls.classList.remove("hidden");
-                    if (waitMessage) waitMessage.classList.add("hidden");
-
-                    // 【修复】只要是房主，在等待界面就无条件显示增减 AI 的按钮
-                    const btnAddAi = document.getElementById("btn-add-ai");
-                    const btnRemoveAi = document.getElementById("btn-remove-ai");
-                    if (btnAddAi) btnAddAi.classList.remove("hidden");
-                    if (btnRemoveAi) btnRemoveAi.classList.remove("hidden");
-
-                    const playerCount = state.playerOrder.length;
-                    if (playerCount < 2) {
-                        if (btnContainer) {
-                            btnContainer.innerHTML = `
-                  <button disabled class="bg-gray-500 text-gray-300 font-black text-2xl py-4 px-12 rounded-full shadow-none border-b-4 border-gray-700 cursor-not-allowed opacity-50">
-                    ${t("waitPlayerBtn")} (${playerCount}/10)
-                  </button>`;
-                        }
-                    } else {
-                        if (btnContainer) {
-                            btnContainer.innerHTML = ` 
-                              <button id="btn-start-game" onclick="network.startGame()" 
-                                class="bg-red-600 hover:bg-red-500 text-white font-black text-2xl py-4 px-12 rounded-full shadow-xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all">
-                                ${t("startGameBtn")} (${playerCount}/10)
-                              </button>`;
-                        }
-                    }
-                    const bbInput = document.getElementById("setting-big-blind");
-                    const chipsInput = document.getElementById("setting-initial-chips");
-                    const sbDisplay = document.getElementById("setting-sb-display");
-                    const errChips = document.getElementById("error-chips-inline");
-                    const errBlind = document.getElementById("error-blind-inline");
-                    const startBtn = document.getElementById("btn-start-game");
-
-                    const validateInputs = () => {
-                        let isValid = true;
-                        const chipsVal = parseInt(chipsInput.value) || 0;
-                        const bbVal = parseInt(bbInput.value) || 0;
-                        if (bbVal < 2) {
-                            errBlind.innerText = t("error_blind_min");
-                            isValid = false;
-                        } else if (bbVal % 2 !== 0) {
-                            errBlind.innerText = t("error_blind_even");
-                            isValid = false;
-                        } else {
-                            errBlind.innerText = "";
-                        }
-                        if (sbDisplay) sbDisplay.innerText = Math.floor(bbVal / 2);
-                        if (chipsVal <= bbVal) {
-                            errChips.innerText = t("error_chips_too_low");
-                            isValid = false;
-                        } else {
-                            errChips.innerText = "";
-                        }
-                        if (startBtn) {
-                            if (!isValid) {
-                                startBtn.disabled = true;
-                                startBtn.classList.add("opacity-50", "cursor-not-allowed", "grayscale");
-                            } else {
-                                startBtn.disabled = false;
-                                startBtn.classList.remove("opacity-50", "cursor-not-allowed", "grayscale");
-                            }
-                        }
-                    };
-
-                    if (chipsInput) {
-                        chipsInput.oninput = () => {
-                            chipsInput.value = chipsInput.value.replace(/[^\d]/g, '');
-                            validateInputs();
-                        };
-                    }
-
-                    if (bbInput) {
-                        bbInput.oninput = () => {
-                            bbInput.value = bbInput.value.replace(/[^\d]/g, '');
-                            validateInputs();
-                        };
-                    }
-                    validateInputs();
-                } else {
-                    hostControls.classList.add("hidden");
-                    if (btnContainer) btnContainer.innerHTML = "";
-
-                    // 【修复】如果你是客机（非房主），强制隐藏 AI 按钮
-                    const btnAddAi = document.getElementById("btn-add-ai");
-                    const btnRemoveAi = document.getElementById("btn-remove-ai");
-                    if (btnAddAi) btnAddAi.classList.add("hidden");
-                    if (btnRemoveAi) btnRemoveAi.classList.add("hidden");
-
-                    const hostPlayer = state.players[state.hostId];
-                    const hostName = hostPlayer ? hostPlayer.name : "Host";
-                    if (waitMessage) {
-                        waitMessage.classList.remove("hidden");
-                        waitMessage.innerText = `${t("waitForHost")} (${hostName})`;
                     }
                 }
             }
