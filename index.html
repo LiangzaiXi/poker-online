@@ -2882,7 +2882,23 @@
         const network = new NetworkManager(gameUI);
         window.network = network;
         window.gameUI = gameUI;
-        network.init();
+        async function startApp() {
+            document.body.insertAdjacentHTML('afterbegin', '<div id="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#172554;z-index:9999;display:flex;justify-content:center;align-items:center;color:white;font-size:20px;">Loading...</div>');
+            try {
+                const langPromise = fetch('https://ipapi.co/json/').then(r => r.json()).catch(() => ({ country_code: 'EN' }));
+                network.init();
+                const data = await langPromise;
+                const country = data.country_code;
+                if (country === 'JP') updateLanguage('ja');
+                else if (country === 'CN') updateLanguage('zh');
+                else updateLanguage('en');
+            } catch (e) {
+                updateLanguage('en');
+            } finally {
+                document.getElementById('loading').remove();
+            }
+        }
+        window.addEventListener('DOMContentLoaded', startApp);
     </script>
 </body>
 
