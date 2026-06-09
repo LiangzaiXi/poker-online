@@ -2629,10 +2629,12 @@
                             alert(data.message);
                             this.leaveRoom();
                         } else if (data.type === 'HOST_TRANSFER') {
+                            this.isTransferringHost = true;
                             this.handleHostTransfer(data.newHostUid, data.state);
                         }
                     });
                     this.hostConnection.on('close', () => {
+                        if (this.isTransferringHost) return;
                         alert("Host disconnected.");
                         this.leaveRoom();
                     });
@@ -2931,6 +2933,7 @@
                 this.executeLeaveCleanup();
             }
             executeLeaveCleanup(isTransferring = false) {
+                this.isTransferringHost = false;
                 if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
                 if (this.heartbeatMonitor) clearInterval(this.heartbeatMonitor);
                 if (this.broadcastInterval) clearInterval(this.broadcastInterval);
@@ -3058,6 +3061,7 @@
                         reliable: true
                     });
                     this.hostConnection.on('open', () => {
+                        this.isTransferringHost = false;
                         this.hostConnection.send({ type: 'JOIN_REQ', uid: this.localUserId, name: localPlayerName });
                         this.startHeartbeatMonitor();
                     });
@@ -3072,6 +3076,7 @@
                             alert(data.message);
                             this.executeLeaveCleanup();
                         } else if (data.type === 'HOST_TRANSFER') {
+                            this.isTransferringHost = true;
                             this.handleHostTransfer(data.newHostUid, data.state);
                         }
                     });
