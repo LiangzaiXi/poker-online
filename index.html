@@ -2287,13 +2287,30 @@
                     if (typeof HandEvaluator !== 'undefined') {
                         const evalResult = HandEvaluator.evaluate(holeCards, communityCards);
                         const rank = Math.floor(evalResult.score / Math.pow(100, 5));
-                        if (rank >= 7) return 1.0;
-                        if (rank === 6) return 0.85;
-                        if (rank === 5) return 0.80;
-                        if (rank === 4) return 0.70;
-                        if (rank === 3) return 0.60;
-                        if (rank === 2) return maxV >= 10 ? 0.45 : 0.25;
-                        return maxV >= 13 ? 0.15 : 0.05;
+                        let baseStrength = 0;
+                        if (rank >= 7) baseStrength = 1.0;
+                        else if (rank === 6) baseStrength = 0.85;
+                        else if (rank === 5) baseStrength = 0.80;
+                        else if (rank === 4) baseStrength = 0.70;
+                        else if (rank === 3) baseStrength = 0.60;
+                        else if (rank === 2) baseStrength = maxV >= 10 ? 0.45 : 0.25;
+                        else baseStrength = maxV >= 13 ? 0.15 : 0.05;
+                        if (communityCards.length >= 3 && evalResult.bestCards) {
+                            const usedHoleCards = evalResult.bestCards.filter(c => c.isHole);
+                            const usedCount = usedHoleCards.length;
+                            if (usedCount === 0 && communityCards.length >= 4) {
+                                baseStrength = 0.1;
+                            } else if (usedCount === 1 && (rank === 5 || rank === 6)) {
+                                if (usedHoleCards[0].value < 11) {
+                                    baseStrength -= 0.35;
+                                }
+                            } else if (usedCount === 1 && rank >= 7) {
+                                if (usedHoleCards[0].value < 10) {
+                                    baseStrength -= 0.2;
+                                }
+                            }
+                        }
+                        return Math.max(0.05, baseStrength);
                     }
                     return 0.1;
                 }
