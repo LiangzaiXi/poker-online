@@ -2179,11 +2179,13 @@
                 setTimeout(() => {
                     let action = 'fold';
                     let amount = 0;
-                    let strength = this.evaluateStrength(player.holeCards, state.communityCards, state.phase);
-                    let randomVal = Math.random();
+                    let bluffProb = 0.25;
+                    let valueBetMult = 1.0;
                     let isCallingStation = false;
                     let isNit = false;
                     let isManiac = false;
+                    let strength = this.evaluateStrength(player.holeCards, state.communityCards, state.phase);
+                    let randomVal = Math.random();
                     let mainOpponent = null;
                     if (state.lastAggressorId && state.lastAggressorId !== aiUid && !state.players[state.lastAggressorId].folded) {
                         mainOpponent = state.players[state.lastAggressorId];
@@ -2203,22 +2205,9 @@
                         else if (vpip < 0.25 && pfr < 0.15) isNit = true;
                         else if (vpip > 0.45 && pfr > 0.35) isManiac = true;
                     }
-                    let activeOpponents = 0;
-                    for (let uid of state.playerOrder) {
-                        if (uid !== aiUid && !state.players[uid].folded) {
-                            activeOpponents++;
-                        }
-                    }
-                    if (activeOpponents >= 2) {
-                        strength -= (activeOpponents - 1) * 0.05;
-                        bluffProb *= 0.3;
-                        if (isNit) strength -= 0.1;
-                    }
                     if (randomVal < 0.15) strength += 0.4;
                     else if (randomVal > 0.90) strength -= 0.3;
                     strength = Math.max(0, Math.min(1, strength));
-                    let bluffProb = 0.25;
-                    let valueBetMult = 1.0;
                     if (isCallingStation) {
                         bluffProb = 0.02;
                         valueBetMult = 1.6;
@@ -2272,7 +2261,6 @@
                     if (action === 'call' && diff >= player.chips) {
                         action = 'call';
                     }
-
                     hostCallback(aiUid, action, amount);
                 }, thinkTime);
             }
@@ -2283,7 +2271,6 @@
                 const isSuited = holeCards[0].suit === holeCards[1].suit;
                 const gap = Math.abs(v1 - v2);
                 const maxV = Math.max(v1, v2);
-
                 if (phase === 'preflop') {
                     let score = maxV * 2;
                     if (v1 === v2) score *= 2.5;
