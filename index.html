@@ -585,11 +585,11 @@
             </div>
         </div>
         <div id="table-area"
-            class="flex-grow relative overflow-hidden flex items-center justify-center bg-gray-950 cursor-grab active:cursor-grabbing pb-[320px]">
+            class="flex-grow relative overflow-hidden flex items-center justify-center bg-gray-950 cursor-grab active:cursor-grabbing">
             <div id="table"
                 class="poker-table w-[95vw] h-[55vh] md:w-[800px] md:h-[450px] max-w-full relative transition-all duration-500">
                 <div id="community-area"
-                    class="absolute top-[42%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-20 transition-opacity duration-200">
+                    class="absolute top-[50%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-20 transition-opacity duration-200">
                     <div id="community-cards"
                         class="flex flex-wrap justify-center items-center gap-1 sm:gap-2 max-w-[150px] md:max-w-none transition-all duration-300">
                         <div id="comm-slot-0" class="card-placeholder"></div>
@@ -1866,7 +1866,7 @@
                 const w = container.offsetWidth;
                 const h = container.offsetHeight;
                 const cx = w / 2;
-                const cy = h / 2;
+                const cy = h / 2 + 30;
                 const localIndex = playerIdsToRender.indexOf(localId);
                 const renderIndex = localIndex === -1 ? 0 : localIndex;
                 let scale = 1, radiusX = 0.38, radiusY = 0.38;
@@ -3492,7 +3492,7 @@
                 this.table = document.getElementById("table");
                 this.isDragging = false;
                 this.startY = 0;
-                this.currentY = 30;
+                this.currentY = -130;
                 this.initialDragY = 0;
                 this.init();
             }
@@ -3521,8 +3521,8 @@
                 const y = this.getY(e);
                 const diff = y - this.startY;
                 this.currentY = this.initialDragY + diff;
-                if (this.currentY > 180) this.currentY = 180;
-                if (this.currentY < -120) this.currentY = -120;
+                if (this.currentY > 20) this.currentY = 20;
+                if (this.currentY < -280) this.currentY = -280;
                 this.updateTransform();
                 if (window.occlusionManager) window.occlusionManager.check();
             }
