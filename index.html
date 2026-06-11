@@ -791,7 +791,7 @@
                 log_phase_flop: "Flop: {cards}",
                 log_phase_turn: "Turn: {cards}",
                 log_phase_river: "River: {cards}",
-                log_player_hand: "{name}: [{hole}] {best} ({handName})",
+                log_player_hand: "{name} Hole: {hole} | Hand: {best} ({handName})",
                 log_refund: "Refunding ${amount} to {name}",
                 log_win_sole: "--- {name} Wins ${amount} ---",
                 log_round_end_no_winner: "--- Round End (No Winner?) ---",
@@ -901,7 +901,7 @@
                 log_phase_flop: "フロップ: {cards}",
                 log_phase_turn: "ターン: {cards}",
                 log_phase_river: "リバー: {cards}",
-                log_player_hand: "{name}: [{hole}] {best} ({handName})",
+                log_player_hand: "{name} 手札: {hole} | 役: {best} ({handName})",
                 log_refund: "{name}に ${amount} を返却",
                 log_win_sole: "--- {name} が ${amount} を獲得 ---",
                 log_round_end_no_winner: "--- 勝者なし？終了 ---",
@@ -1011,7 +1011,7 @@
                 log_phase_flop: "翻牌：{cards}",
                 log_phase_turn: "转牌：{cards}",
                 log_phase_river: "河牌：{cards}",
-                log_player_hand: "{name}：[{hole}] {best}（{handName}）",
+                log_player_hand: "{name} 底牌：{hole} | 牌型：{best}（{handName}）",
                 log_refund: "退还 ${amount} 给 {name}",
                 log_win_sole: "--- {name} 获胜, 赢得 ${amount} ---",
                 log_round_end_no_winner: "--- 无人获胜？回合结束 ---",
@@ -1363,11 +1363,10 @@
                         p.bestHand = HandEvaluator.evaluate(p.holeCards, newState.communityCards);
                     });
                     activePlayers.forEach(p => {
-                        const sortedBest = [...p.bestHand.bestCards].sort((a, b) => b.value - a.value);
                         newState.logs.push(createLog("log_player_hand", {
                             name: p.name,
                             hole: formatCards(p.holeCards),
-                            best: formatCards(sortedBest),
+                            best: formatCards(p.bestHand.bestCards),
                             handName: p.bestHand.name
                         }));
                     });
