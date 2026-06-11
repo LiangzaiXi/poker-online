@@ -600,7 +600,7 @@
                     </div>
                 </div>
                 <div id="game-message"
-                    class="absolute top-[23%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-yellow-100 font-bold text-xl text-center z-30 pointer-events-none drop-shadow-lg px-4 py-2 rounded whitespace-nowrap transition-opacity duration-300 opacity-0">
+                    class="absolute top-[33%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-yellow-100 font-bold text-xl text-center z-30 pointer-events-none drop-shadow-lg px-4 py-2 rounded whitespace-nowrap transition-opacity duration-300 opacity-0">
                 </div>
                 <div id="seats-container" class="w-full h-full relative"></div>
             </div>
@@ -612,8 +612,8 @@
                 <div class="w-12 h-1 bg-gray-400 rounded-full"></div>
             </div>
             <div id="game-log"
-                class="overflow-y-auto text-xs text-gray-500 mb-3 font-mono bg-gray-950 p-2 rounded border border-gray-800 scroll-smooth leading-5"
-                style="height: 80px; min-height: 0; transition: height 0.1s ease-out;">
+                class="select-text overflow-y-auto text-xs text-gray-500 mb-3 font-mono bg-gray-950 p-2 rounded border border-gray-800 scroll-smooth leading-5"
+                style="height: 90px; min-height: 0; transition: height 0.1s ease-out;">
                 <div data-i18n="log_welcome">System: Welcome to Texas Hold'em.</div>
             </div>
             <div id="chat-bar" class="flex gap-2 mb-3">
@@ -1043,7 +1043,12 @@
         const createLog = (key, args = {}) => {
             return JSON.stringify({ key, args });
         };
-        const formatCards = (cards) => cards ? cards.map(c => c.suit + c.rank).join(' ') : '';
+        const formatCards = (cards) => cards ? cards.map(c => {
+            if (c.suit === '♥' || c.suit === '♦') {
+                return `<span style="color: #ef4444;">${c.suit}${c.rank}</span>`;
+            }
+            return `${c.suit}${c.rank}`;
+        }).join(' ') : '';
         window.updateLanguage = (lang) => {
             currentLang = lang;
             document.documentElement.lang = lang;
@@ -1796,6 +1801,7 @@
                     }
                 }
                 const logDiv = document.getElementById("game-log");
+                const isAtBottom = logDiv.scrollHeight - logDiv.scrollTop - logDiv.clientHeight <= 20;
                 logDiv.innerHTML = state.logs.map((logStr) => {
                     let displayMsg = logStr;
                     try {
@@ -1805,12 +1811,18 @@
                             const pColor = window.getPlayerColor ? window.getPlayerColor(logObj.uid) : "#aaa";
                             return `<div style="color: ${pColor}">[Chat] ${pName}: ${logObj.text}</div>`;
                         }
-
                         if (logObj.key) {
                             if (logObj.key === "log_player_hand") {
                                 logObj.args.handName = t(logObj.args.handName);
                             }
-
+                            if (logObj.args && logObj.args.name) {
+                                const targetPlayer = Object.values(state.players).find(p => p.name === logObj.args.name)
+                                    || (state.spectators || []).find(s => s.name === logObj.args.name);
+                                if (targetPlayer) {
+                                    const pColor = window.getPlayerColor ? window.getPlayerColor(targetPlayer.uid) : "#aaa";
+                                    logObj.args.name = `<span style="color: ${pColor}; font-weight: bold;">${logObj.args.name}</span>`;
+                                }
+                            }
                             displayMsg = t(logObj.key, logObj.args);
                             if (logObj.key === "log_showdown_result") {
                                 const potNameRaw = logObj.args.potName;
@@ -1823,7 +1835,9 @@
                     } catch (e) { }
                     return `<div>> ${displayMsg}</div>`;
                 }).join("");
-                logDiv.scrollTop = logDiv.scrollHeight;
+                if (isAtBottom) {
+                    logDiv.scrollTop = logDiv.scrollHeight;
+                }
                 this.updateControls(state);
                 if (localPlayer) {
                     const lastLog = state.logs.length > 0 ? state.logs[state.logs.length - 1] : "";
@@ -1909,7 +1923,10 @@
                     seatDiv.style.left = `${x - 60}px`;
                     seatDiv.style.top = `${y - 55}px`;
                     seatDiv.style.transform = `scale(${scale})`;
-                    seatDiv.querySelector(`#name-${p.uid}`).innerText = p.name;
+                    const nameEl = seatDiv.querySelector(`#name-${p.uid}`);
+                    nameEl.innerText = p.name;
+                    nameEl.style.color = window.getPlayerColor(p.uid);
+                    nameEl.classList.remove("text-yellow-400");
                     const bubble =
                         seatDiv.querySelector(`#chat-${p.uid}`);
                     if (bubble) {
@@ -2324,29 +2341,15 @@
                 this.aiThinkingUid = null;
             }
             sendChat() {
-                const input =
-                    document.getElementById("chat-input");
+                const input = document.getElementById("chat-input");
                 if (!input) return;
-                const text =
-                    input.value.trim();
+                const text = input.value.trim();
                 if (!text) return;
                 input.value = "";
-                const now = Date.now();
-                if (this.lastChatTime &&
-                    now - this.lastChatTime < 1000) {
-                    return;
-                }
-                this.lastChatTime = now;
                 if (this.isHost) {
-                    let state =
-                        JSON.parse(
-                            JSON.stringify(
-                                this.gameUI.lastState
-                            )
-                        );
+                    let state = JSON.parse(JSON.stringify(this.gameUI.lastState));
                     if (!state) return;
-                    if (!state.chatMessages)
-                        state.chatMessages = [];
+                    if (!state.chatMessages) state.chatMessages = [];
                     const msg = {
                         id: `chat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                         uid: this.localUserId,
@@ -2360,19 +2363,10 @@
                     }
                     this.broadcastState(state);
                     setTimeout(() => {
-                        const cur =
-                            this.gameUI.lastState;
-                        if (!cur ||
-                            !cur.chatMessages)
-                            return;
-                        const next =
-                            JSON.parse(
-                                JSON.stringify(cur)
-                            );
-                        next.chatMessages =
-                            next.chatMessages.filter(
-                                m => m.id !== msg.id
-                            );
+                        const cur = this.gameUI.lastState;
+                        if (!cur || !cur.chatMessages) return;
+                        const next = JSON.parse(JSON.stringify(cur));
+                        next.chatMessages = next.chatMessages.filter(m => m.id !== msg.id);
                         this.broadcastState(next);
                     }, 3000);
                     return;
@@ -2383,15 +2377,11 @@
                         uid: this.localUserId,
                         text: text.slice(0, 60)
                     });
-
                 }
             }
             sendSystemChat(messageText) {
                 const text = String(messageText || "").trim();
                 if (!text) return;
-                const now = Date.now();
-                if (this.lastChatTime && now - this.lastChatTime < 1000) return;
-                this.lastChatTime = now;
                 const payload = {
                     type: "CHAT_MESSAGE",
                     uid: this.localUserId,
@@ -3742,12 +3732,16 @@
             let isResizingLog = false;
             let startY = 0;
             let startHeight = 0;
+            let startScrollRatio = 1;
             const startDrag = (y) => {
                 isResizingLog = true;
                 startY = y;
                 startHeight = gameLog.getBoundingClientRect().height;
                 document.body.style.cursor = "ns-resize";
                 gameLog.style.transition = "none";
+                gameLog.classList.remove("scroll-smooth");
+                const maxScroll = gameLog.scrollHeight - gameLog.clientHeight;
+                startScrollRatio = maxScroll > 0 ? (gameLog.scrollTop / maxScroll) : 1;
             };
             const onDrag = (y) => {
                 if (!isResizingLog) return;
@@ -3764,12 +3758,17 @@
                     gameLog.style.padding = "";
                     gameLog.style.borderWidth = "";
                 }
+                const currentMaxScroll = gameLog.scrollHeight - gameLog.clientHeight;
+                if (currentMaxScroll > 0) {
+                    gameLog.scrollTop = currentMaxScroll * startScrollRatio;
+                }
             };
             const stopDrag = () => {
                 if (isResizingLog) {
                     isResizingLog = false;
                     document.body.style.cursor = "";
                     gameLog.style.transition = "height 0.1s ease-out";
+                    gameLog.classList.add("scroll-smooth");
                 }
             };
             if (resizer) {
