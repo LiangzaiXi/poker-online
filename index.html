@@ -1849,6 +1849,18 @@
                                 const pColor = window.getPlayerColor ? window.getPlayerColor(logObj.args.name) : "#aaa";
                                 logObj.args.name = `<span style="color: ${pColor}; font-weight: bold;">${logObj.args.name}</span>`;
                             }
+                            if (logObj.args && logObj.args.name) {
+                                const pColor = window.getPlayerColor ? window.getPlayerColor(logObj.args.name) : "#aaa";
+                                logObj.args.name = `<span style="color: ${pColor}; font-weight: bold;">${logObj.args.name}</span>`;
+                            }
+                            if (logObj.args && logObj.args.winners) {
+                                let winnerNames = logObj.args.winners.split(", ");
+                                let coloredWinners = winnerNames.map(wName => {
+                                    const pColor = window.getPlayerColor ? window.getPlayerColor(wName) : "#aaa";
+                                    return `<span style="color: ${pColor}; font-weight: bold;">${wName}</span>`;
+                                });
+                                logObj.args.winners = coloredWinners.join(", ");
+                            }
                             displayMsg = t(logObj.key, logObj.args);
                             if (logObj.key === "log_showdown_result") {
                                 const potNameRaw = logObj.args.potName;
