@@ -2461,6 +2461,16 @@
                 document.getElementById("room-screen").classList.remove("hidden");
                 this.initMQTT();
                 this.startRoomAutoRefresh();
+                document.addEventListener("visibilitychange", () => {
+                    if (document.visibilityState === "visible") {
+                        if (this.isHost && this.gameUI && this.gameUI.lastState) {
+                            this.broadcastState(this.gameUI.lastState);
+                        }
+                        if (!this.isHost) {
+                            this.lastHeartbeat = Date.now();
+                        }
+                    }
+                });
             }
             initMQTT() {
                 try {
@@ -3309,7 +3319,11 @@
                 this.lastHeartbeat = Date.now();
                 this.heartbeatMonitor = setInterval(() => {
                     if (!this.isHost && this.hostConnection && this.currentRoomId) {
-                        if (Date.now() - this.lastHeartbeat > 6000) {
+                        if (document.visibilityState === 'hidden') {
+                            this.lastHeartbeat = Date.now();
+                            return;
+                        }
+                        if (Date.now() - this.lastHeartbeat > 20000) {
                             console.warn("房主心跳丢失！触发紧急坠机恢复协议...");
                             clearInterval(this.heartbeatMonitor);
                             this.handleHostCrash();
