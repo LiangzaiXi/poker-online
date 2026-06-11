@@ -3492,7 +3492,7 @@
                 this.table = document.getElementById("table");
                 this.isDragging = false;
                 this.startY = 0;
-                this.currentY = -130;
+                this.currentY = -150;
                 this.initialDragY = 0;
                 this.init();
             }
@@ -3521,8 +3521,8 @@
                 const y = this.getY(e);
                 const diff = y - this.startY;
                 this.currentY = this.initialDragY + diff;
-                if (this.currentY > 20) this.currentY = 20;
-                if (this.currentY < -280) this.currentY = -280;
+                if (this.currentY > 0) this.currentY = 0;
+                if (this.currentY < -300) this.currentY = -300;
                 this.updateTransform();
                 if (window.occlusionManager) window.occlusionManager.check();
             }
