@@ -679,7 +679,7 @@
                         </div>
                         <input type="number" id="setting-big-blind" value="20" step="2" min="2"
                             class="w-full bg-gray-900 text-white border border-gray-600 rounded px-2 py-1 text-sm focus:border-yellow-500 outline-none font-mono">
-                        <p class="text-gray-400 text-[10px] mt-1 text-right"><span data-i18n="smallBlindAuto">SB
+                        <p class="text-gray-400 text-[10px] mt-1 text-right"><span data-i18n="smallBlind">SB
                                 Auto</span>: <span id="setting-sb-display" class="text-white font-bold">10</span></p>
                     </div>
                 </div>
@@ -705,6 +705,7 @@
     <script>
         const TRANSLATIONS = {
             en: {
+                chatLabel: "Chat",
                 chatPlaceholder: "Type a message...",
                 chatSendBtn: "Send",
                 log_cheat_alert: "【System Warning】{name} detected using debugging tools, possible cheating!",
@@ -735,7 +736,7 @@
                 waiting: "Waiting",
                 initialChips: "Initial Chips",
                 bigBlind: "Big Blind",
-                smallBlindAuto: "SB Auto",
+                smallBlind: "SB",
                 waitForHost: "Waiting for host...",
                 startGameBtn: "Start Game",
                 waitPlayerBtn: "Waiting Players",
@@ -814,6 +815,7 @@
                 spectatorModeMsg: "Game in progress. Spectator Mode."
             },
             ja: {
+                chatLabel: "チャット",
                 chatPlaceholder: "メッセージを入力...",
                 chatSendBtn: "送信",
                 log_cheat_alert: "【システム警告】{name} がデバッグツールを使用していることが検出されました。不正行為の可能性があります！",
@@ -844,7 +846,7 @@
                 waiting: "待機中",
                 initialChips: "初期チップ",
                 bigBlind: "ビッグブラインド",
-                smallBlindAuto: "SB自動",
+                smallBlind: "SB",
                 waitForHost: "ホストの開始待ち...",
                 startGameBtn: "ゲーム開始",
                 waitPlayerBtn: "参加者待ち",
@@ -923,6 +925,7 @@
                 spectatorModeMsg: "ゲーム進行中。観戦モードです。"
             },
             zh: {
+                chatLabel: "聊天",
                 chatPlaceholder: "输入聊天内容...",
                 chatSendBtn: "发送",
                 log_cheat_alert: "【系统警告】检测到 {name} 正在使用调试工具，可能存在作弊行为！",
@@ -953,7 +956,7 @@
                 waiting: "等待中",
                 initialChips: "初始筹码",
                 bigBlind: "大盲注",
-                smallBlindAuto: "小盲自动",
+                smallBlind: "小盲注",
                 waitForHost: "等待房主开始...",
                 startGameBtn: "开始游戏",
                 waitPlayerBtn: "等待玩家",
@@ -1074,10 +1077,37 @@
                 network.renderRoomList();
             }
         };
-        window.getPlayerColor = function (uid) {
+        window.getPlayerColor = function (nameStr) {
+            const name = String(nameStr || "").trim();
+            const aiHues = {
+                "Alice": 10,
+                "Bob": 200,
+                "Charlie": 80,
+                "Dave": 320,
+                "Eve": 40,
+                "Frank": 260,
+                "Grace": 140,
+                "Heidi": 290,
+                "Ivan": 170,
+                "Judy": 350
+            };
+            for (let botName in aiHues) {
+                if (name.includes(botName)) {
+                    let offset = name.includes(" 2") ? 30 : (name.includes(" 3") ? 60 : 0);
+                    return `hsl(${(aiHues[botName] + offset) % 360}, 85%, 65%)`;
+                }
+            }
+            if (name.startsWith("Player")) {
+                let num = parseInt(name.replace("Player", "").trim()) || 1;
+                let playerHues = [110, 230, 300, 15, 60];
+                return `hsl(${playerHues[num % playerHues.length]}, 85%, 65%)`;
+            }
             let hash = 0;
-            for (let i = 0; i < uid.length; i++) hash = uid.charCodeAt(i) + ((hash << 5) - hash);
-            return `hsl(${Math.abs(hash) % 360}, 80%, 65%)`;
+            for (let i = 0; i < name.length; i++) {
+                hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const hue = Math.abs(hash * 137.5) % 360;
+            return `hsl(${hue}, 85%, 65%)`;
         };
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const SUITS = ["♠", "♥", "♣", "♦"];
@@ -1808,20 +1838,16 @@
                         const logObj = JSON.parse(logStr);
                         if (logObj.isChat) {
                             const pName = state.players[logObj.uid]?.name || "Player";
-                            const pColor = window.getPlayerColor ? window.getPlayerColor(logObj.uid) : "#aaa";
-                            return `<div style="color: ${pColor}">[Chat] ${pName}: ${logObj.text}</div>`;
+                            const pColor = window.getPlayerColor ? window.getPlayerColor(pName) : "#aaa";
+                            return `<div style="color: ${pColor}">[${t("chatLabel")}] <b>${pName}</b>: ${logObj.text}</div>`;
                         }
                         if (logObj.key) {
                             if (logObj.key === "log_player_hand") {
                                 logObj.args.handName = t(logObj.args.handName);
                             }
                             if (logObj.args && logObj.args.name) {
-                                const targetPlayer = Object.values(state.players).find(p => p.name === logObj.args.name)
-                                    || (state.spectators || []).find(s => s.name === logObj.args.name);
-                                if (targetPlayer) {
-                                    const pColor = window.getPlayerColor ? window.getPlayerColor(targetPlayer.uid) : "#aaa";
-                                    logObj.args.name = `<span style="color: ${pColor}; font-weight: bold;">${logObj.args.name}</span>`;
-                                }
+                                const pColor = window.getPlayerColor ? window.getPlayerColor(logObj.args.name) : "#aaa";
+                                logObj.args.name = `<span style="color: ${pColor}; font-weight: bold;">${logObj.args.name}</span>`;
                             }
                             displayMsg = t(logObj.key, logObj.args);
                             if (logObj.key === "log_showdown_result") {
@@ -1925,7 +1951,7 @@
                     seatDiv.style.transform = `scale(${scale})`;
                     const nameEl = seatDiv.querySelector(`#name-${p.uid}`);
                     nameEl.innerText = p.name;
-                    nameEl.style.color = window.getPlayerColor(p.uid);
+                    nameEl.style.color = window.getPlayerColor(p.name);
                     nameEl.classList.remove("text-yellow-400");
                     const bubble =
                         seatDiv.querySelector(`#chat-${p.uid}`);
@@ -1937,7 +1963,7 @@
                         if (latest) {
                             bubble.innerText = latest.text;
                             bubble.innerText = latest.text;
-                            bubble.style.color = window.getPlayerColor(p.uid);
+                            bubble.style.color = window.getPlayerColor(p.name);
                             bubble.classList.remove("hidden");
                             bubble.classList.remove("hidden");
                         } else {
@@ -2804,6 +2830,16 @@
                 if (!state) return;
                 if (data.type === 'JOIN_REQ') {
                     let aiPlayers = Object.values(state.players).filter(p => p.isAI);
+                    if (!state.players[data.uid]) {
+                        let existingNames = Object.values(state.players).map(p => p.name).concat((state.spectators || []).map(s => s.name));
+                        let finalName = data.name;
+                        let counter = 2;
+                        while (existingNames.includes(finalName)) {
+                            finalName = `${data.name} ${counter}`;
+                            counter++;
+                        }
+                        data.name = finalName;
+                    }
                     if (state.players[data.uid]) {
                         let p = state.players[data.uid];
                         if (p.isAI) {
@@ -2944,8 +2980,10 @@
                 let state = JSON.parse(JSON.stringify(this.gameUI.lastState));
                 if (state.playerOrder.length >= 10 || state.status !== "waiting") return;
                 let aiId = "ai_" + Math.random().toString(36).substr(2, 5);
-                let aiNames = ["Alice", "Bob", "Charlie", "Dave", "Eve", "Frank"];
-                let name = "Bot " + aiNames[Math.floor(Math.random() * aiNames.length)];
+                let aiNames = ["Alice", "Bob", "Charlie", "Dave", "Eve", "Frank", "Grace", "Heidi", "Ivan", "Judy"];
+                let existingNames = Object.values(state.players).map(p => p.name);
+                let availableNames = aiNames.map(n => "Bot " + n).filter(n => !existingNames.includes(n));
+                let name = availableNames.length > 0 ? availableNames[Math.floor(Math.random() * availableNames.length)] : "Bot " + Math.floor(Math.random() * 1000);
                 state.players[aiId] = {
                     uid: aiId, id: state.playerOrder.length, name: name,
                     chips: state.config?.initialChips || 2000, holeCards: [], folded: false,
