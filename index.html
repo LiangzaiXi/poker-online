@@ -1886,7 +1886,11 @@
                         displayState.dealerIndex = this.frozenTableState.dealerIndex;
                     }
                     displayState.pot = this.frozenTableState.pot;
-                    displayState.phase = this.frozenTableState.phase;
+                    if (this.animatingDealType === "log_new_round") {
+                        displayState.phase = state.phase;
+                    } else {
+                        displayState.phase = this.frozenTableState.phase;
+                    }
                     displayState.playerOrder.forEach(uid => {
                         if (displayState.players[uid] && this.frozenTableState.players[uid]) {
                             displayState.players[uid].chips = this.frozenTableState.players[uid].chips;
@@ -2053,7 +2057,7 @@
                                     fCard.style.top = `${targetY}px`;
                                     fCard.style.transform = `translate(-50%, -50%) scale(${scale})`;
                                     container.appendChild(fCard);
-                                    targets.push({ realCard, uid, fCard });
+                                    targets.push({ realCard, uid, fCard, cardIdx: r });
                                 }
                             }
                         }
@@ -2070,6 +2074,7 @@
                             const slot = document.getElementById(`comm-slot-${i}`);
                             if (slot && slot.firstElementChild && this.highlightCards.has(state.communityCards[i]?.id)) slot.firstElementChild.classList.add("winning-card");
                         }
+                        renderLogsHTML(this.lastState.logs);
                         this.updateControls(state);
                     } else {
                         setTimeout(() => {
@@ -2079,11 +2084,18 @@
                                     t.fCard.style.transition = "transform 0.15s linear";
                                     t.fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(90deg)`;
                                     setTimeout(() => {
-                                        t.fCard.className = t.realCard.className + " absolute z-50 ghost-card";
-                                        t.fCard.innerHTML = t.realCard.innerHTML;
+                                        const cData = state.players[t.uid].holeCards[t.cardIdx];
+                                        let cClass = `card ${cData.color} absolute z-50 ghost-card`;
+                                        if (this.highlightCards.has(cData.id)) cClass += " winning-card";
+                                        t.fCard.className = cClass;
+                                        t.fCard.innerHTML = `<span class="absolute top-0 left-1 text-xs">${cData.rank}</span><span class="text-2xl">${cData.suit}</span>`;
                                         t.fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(0deg)`;
                                         if (k % 2 === 0) this.sound.playCardFlip();
                                         setTimeout(() => {
+                                            let rClass = `card ${cData.color}`;
+                                            if (this.highlightCards.has(cData.id)) rClass += " winning-card";
+                                            t.realCard.className = rClass;
+                                            t.realCard.innerHTML = `<span class="absolute top-0 left-1 text-xs">${cData.rank}</span><span class="text-2xl">${cData.suit}</span>`;
                                             t.realCard.style.opacity = '1';
                                             t.fCard.remove();
                                         }, 150);
@@ -2103,6 +2115,7 @@
                                     const slot = document.getElementById(`comm-slot-${i}`);
                                     if (slot && slot.firstElementChild && this.highlightCards.has(state.communityCards[i]?.id)) slot.firstElementChild.classList.add("winning-card");
                                 }
+                                renderLogsHTML(this.lastState.logs);
                                 this.updateControls(this.lastState);
                             }, totalDelay);
                         }, 100);
