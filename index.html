@@ -1048,9 +1048,9 @@
         };
         const formatCards = (cards) => cards ? cards.map(c => {
             if (c.suit === '♥' || c.suit === '♦') {
-                return `<span style="color: #ef4444;">${c.suit}${c.rank}</span>`;
+                return `<span style="color: #ef4444; font-weight: bold;">${c.suit}${c.rank}</span>`;
             }
-            return `${c.suit}${c.rank}`;
+            return `<span style="font-weight: bold;">${c.suit}${c.rank}</span>`;
         }).join(' ') : '';
         window.updateLanguage = (lang) => {
             currentLang = lang;
@@ -1765,10 +1765,37 @@
             }
             renderGameState(state, localId) {
                 if (!state) return;
+                const oldState = this.lastState;
                 this.initSound();
+                let foldGhostCards = [];
+                if (oldState && state && state.players && oldState.players) {
+                    for (let uid of state.playerOrder) {
+                        const pNow = state.players[uid];
+                        const pOld = oldState.players[uid];
+                        if (pNow && pOld && pNow.folded && !pOld.folded) {
+                            const cardsContainer = document.getElementById(`cards-${uid}`);
+                            if (cardsContainer && cardsContainer.children.length > 0) {
+                                const cRect = document.getElementById("seats-container").getBoundingClientRect();
+                                for (let r = 0; r < cardsContainer.children.length; r++) {
+                                    const realCard = cardsContainer.children[r];
+                                    const rect = realCard.getBoundingClientRect();
+                                    const isFaceUp = !realCard.classList.contains('card-back');
+                                    foldGhostCards.push({
+                                        x: rect.left - cRect.left + rect.width / 2,
+                                        y: rect.top - cRect.top + rect.height / 2,
+                                        isFaceUp: isFaceUp,
+                                        html: realCard.innerHTML,
+                                        className: realCard.className
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
                 const lastLogStr = state.logs.length > 0 ? state.logs[state.logs.length - 1] : "";
                 const prevLogStr = (this.lastState && this.lastState.logs.length > 0) ? this.lastState.logs[this.lastState.logs.length - 1] : "";
                 const hasNewLog = this.lastState && (state.logs.length > this.lastState.logs.length || (state.logs.length > 0 && lastLogStr !== prevLogStr));
+                let dealType = null;
                 if (hasNewLog) {
                     let logKey = "";
                     try {
@@ -1777,16 +1804,66 @@
                     } catch (e) {
                         logKey = lastLogStr;
                     }
+                    if (["log_new_round", "log_phase_flop", "log_phase_turn", "log_phase_river"].includes(logKey)) {
+                        dealType = logKey;
+                        this.animatingDealType = dealType;
+                        this.isAnimatingDeal = true;
+                        if (oldState) {
+                            this.frozenTableState = JSON.parse(JSON.stringify(oldState));
+                        }
+                    }
                     if (logKey === "log_fold") this.sound.playFold();
                     else if (logKey === "log_check") this.sound.playCheck();
                     else if (logKey === "log_call") this.sound.playChip();
                     else if (logKey === "log_raise") this.sound.playRaise();
-                    if (["log_phase_flop", "log_phase_turn", "log_phase_river"].includes(logKey)) this.sound.playCard();
+                    if (["log_phase_flop", "log_phase_turn", "log_phase_river"].includes(logKey)) this.sound.playCardFly();
+                }
+                let isShowdownTransition = state.phase === "showdown" && (!this.lastState || this.lastState.phase !== "showdown");
+                if (isShowdownTransition && state.highlightCards && state.highlightCards.length > 0) {
+                    dealType = "showdown_flip";
+                    this.animatingDealType = dealType;
+                    this.isAnimatingDeal = true;
+                    if (oldState) {
+                        this.frozenTableState = JSON.parse(JSON.stringify(oldState));
+                    }
                 }
                 const newChats = state.chatMessages || [];
                 const oldChats = this.lastState?.chatMessages || [];
                 if (newChats.length > 0 && newChats[newChats.length - 1].id !== oldChats[oldChats.length - 1]?.id) {
                     this.sound.playChat();
+                }
+                let cardsToCollect = [];
+                const oldHighlightCards = new Set(this.lastState?.highlightCards || []);
+                if (dealType === "log_new_round") {
+                    const oldDealerUid = this.lastState && this.lastState.playerOrder ? this.lastState.playerOrder[this.lastState.dealerIndex] : null;
+                    const domCards = Array.from(document.querySelectorAll('#seats-container .card, #community-area .card')).filter(el => el.id !== 'deck-pile' && !el.classList.contains('ghost-card'));
+                    if (domCards.length > 0 && oldDealerUid) {
+                        const cRect = document.getElementById("seats-container").getBoundingClientRect();
+                        cardsToCollect = domCards.map(el => {
+                            const rect = el.getBoundingClientRect();
+                            const isFaceUp = !el.classList.contains('card-back');
+                            let className = el.className;
+                            if (el.dataset.cid && oldHighlightCards.has(el.dataset.cid) && !className.includes("winning-card")) {
+                                className += " winning-card";
+                            }
+                            return {
+                                x: rect.left - cRect.left + rect.width / 2,
+                                y: rect.top - cRect.top + rect.height / 2,
+                                isFaceUp: isFaceUp,
+                                html: el.innerHTML,
+                                className: className,
+                                scale: el.closest('#community-area') ? 1 : (this.currentScale || 1)
+                            };
+                        });
+                        this.customDeckTarget = { uid: oldDealerUid, zone: 'idle' };
+                        this.deckInDealingZone = false;
+                    } else {
+                        this.deckInDealingZone = true;
+                        this.customDeckTarget = null;
+                    }
+                } else if (dealType && dealType !== "showdown_flip") {
+                    this.deckInDealingZone = true;
+                    this.customDeckTarget = null;
                 }
                 this.highlightCards = new Set(state.highlightCards || []);
                 const playerCount = state.playerOrder ? state.playerOrder.length : 0;
@@ -1802,14 +1879,30 @@
                 this.lastState = state;
                 this.localPlayerId = localId;
                 const localPlayer = state.players[localId];
-                document.getElementById("pot-display").innerText = state.pot;
-                const phaseKey = PHASE_KEY_MAP[state.phase] || state.phase;
+                let displayState = state;
+                if (this.animatingDealType && this.frozenTableState && ["log_new_round", "log_phase_flop", "log_phase_turn", "log_phase_river", "showdown_flip"].includes(this.animatingDealType)) {
+                    displayState = JSON.parse(JSON.stringify(state));
+                    if (this.animatingDealType === "log_new_round" && cardsToCollect.length > 0) {
+                        displayState.dealerIndex = this.frozenTableState.dealerIndex;
+                    }
+                    displayState.pot = this.frozenTableState.pot;
+                    displayState.phase = this.frozenTableState.phase;
+                    displayState.playerOrder.forEach(uid => {
+                        if (displayState.players[uid] && this.frozenTableState.players[uid]) {
+                            displayState.players[uid].chips = this.frozenTableState.players[uid].chips;
+                            displayState.players[uid].status = this.frozenTableState.players[uid].status;
+                            displayState.players[uid].currentBet = this.frozenTableState.players[uid].currentBet;
+                        }
+                    });
+                }
+                document.getElementById("pot-display").innerText = displayState.pot;
+                const phaseKey = PHASE_KEY_MAP[displayState.phase] || displayState.phase;
                 document.getElementById("phase-display").innerText = t(phaseKey);
                 if (state.config) {
                     const blindsEl = document.getElementById("blinds-display");
                     if (blindsEl) blindsEl.innerText = `${t("bigBlind")} $${state.config.bigBlind}`;
                 }
-                this.renderTableLayout(state, localId);
+                this.renderTableLayout(displayState, localId);
                 for (let i = 0; i < 5; i++) {
                     const slot = document.getElementById(`comm-slot-${i}`);
                     if (!slot) continue;
@@ -1820,7 +1913,7 @@
                             cardEl = this.createCardEl(cardData);
                             slot.appendChild(cardEl);
                         }
-                        if (this.highlightCards.has(cardData.id)) {
+                        if (!this.animatingDealType && this.highlightCards.has(cardData.id)) {
                             if (!cardEl.classList.contains("winning-card")) cardEl.classList.add("winning-card");
                         } else {
                             if (cardEl.classList.contains("winning-card")) cardEl.classList.remove("winning-card");
@@ -1829,52 +1922,58 @@
                         slot.innerHTML = "";
                     }
                 }
-                const logDiv = document.getElementById("game-log");
-                const isAtBottom = logDiv.scrollHeight - logDiv.scrollTop - logDiv.clientHeight <= 20;
-                logDiv.innerHTML = state.logs.map((logStr) => {
-                    let displayMsg = logStr;
-                    try {
-                        const logObj = JSON.parse(logStr);
-                        if (logObj.isChat) {
-                            const pName = state.players[logObj.uid]?.name || "Player";
-                            const pColor = window.getPlayerColor ? window.getPlayerColor(pName) : "#aaa";
-                            return `<div style="color: ${pColor}">[${t("chatLabel")}] <b>${pName}</b>: ${logObj.text}</div>`;
-                        }
-                        if (logObj.key) {
-                            if (logObj.key === "log_player_hand") {
-                                logObj.args.handName = t(logObj.args.handName);
+                const renderLogsHTML = (logs) => {
+                    const logDiv = document.getElementById("game-log");
+                    const isAtBottom = logDiv.scrollHeight - logDiv.scrollTop - logDiv.clientHeight <= 20;
+                    logDiv.innerHTML = logs.map((logStr) => {
+                        let displayMsg = logStr;
+                        try {
+                            const logObj = JSON.parse(logStr);
+                            if (logObj.isChat) {
+                                const pName = state.players[logObj.uid]?.name || "Player";
+                                const pColor = window.getPlayerColor ? window.getPlayerColor(pName) : "#aaa";
+                                return `<div style="color: ${pColor}">[${t("chatLabel")}] <b>${pName}</b>: ${logObj.text}</div>`;
                             }
-                            if (logObj.args && logObj.args.name) {
-                                const pColor = window.getPlayerColor ? window.getPlayerColor(logObj.args.name) : "#aaa";
-                                logObj.args.name = `<span style="color: ${pColor}; font-weight: bold;">${logObj.args.name}</span>`;
+                            if (logObj.key) {
+                                if (logObj.key === "log_player_hand") {
+                                    logObj.args.handName = t(logObj.args.handName);
+                                }
+                                if (logObj.args && logObj.args.name) {
+                                    const pColor = window.getPlayerColor ? window.getPlayerColor(logObj.args.name) : "#aaa";
+                                    logObj.args.name = `<span style="color: ${pColor}; font-weight: bold;">${logObj.args.name}</span>`;
+                                }
+                                if (logObj.args && logObj.args.winners) {
+                                    let winnerNames = logObj.args.winners.split(", ");
+                                    let coloredWinners = winnerNames.map(wName => {
+                                        const pColor = window.getPlayerColor ? window.getPlayerColor(wName) : "#aaa";
+                                        return `<span style="color: ${pColor}; font-weight: bold;">${wName}</span>`;
+                                    });
+                                    logObj.args.winners = coloredWinners.join(", ");
+                                }
+                                displayMsg = t(logObj.key, logObj.args);
+                                if (logObj.key === "log_showdown_result") {
+                                    const potNameRaw = logObj.args.potName;
+                                    let translatedPot = potNameRaw;
+                                    if (potNameRaw === "Main") translatedPot = t("main_pot");
+                                    else if (potNameRaw && potNameRaw.startsWith("Side")) translatedPot = t("side_pot") + " " + potNameRaw.split(" ")[1];
+                                    displayMsg = displayMsg.replace(potNameRaw, translatedPot);
+                                }
                             }
-                            if (logObj.args && logObj.args.name) {
-                                const pColor = window.getPlayerColor ? window.getPlayerColor(logObj.args.name) : "#aaa";
-                                logObj.args.name = `<span style="color: ${pColor}; font-weight: bold;">${logObj.args.name}</span>`;
-                            }
-                            if (logObj.args && logObj.args.winners) {
-                                let winnerNames = logObj.args.winners.split(", ");
-                                let coloredWinners = winnerNames.map(wName => {
-                                    const pColor = window.getPlayerColor ? window.getPlayerColor(wName) : "#aaa";
-                                    return `<span style="color: ${pColor}; font-weight: bold;">${wName}</span>`;
-                                });
-                                logObj.args.winners = coloredWinners.join(", ");
-                            }
-                            displayMsg = t(logObj.key, logObj.args);
-                            if (logObj.key === "log_showdown_result") {
-                                const potNameRaw = logObj.args.potName;
-                                let translatedPot = potNameRaw;
-                                if (potNameRaw === "Main") translatedPot = t("main_pot");
-                                else if (potNameRaw && potNameRaw.startsWith("Side")) translatedPot = t("side_pot") + " " + potNameRaw.split(" ")[1];
-                                displayMsg = displayMsg.replace(potNameRaw, translatedPot);
-                            }
-                        }
-                    } catch (e) { }
-                    return `<div>> ${displayMsg}</div>`;
-                }).join("");
-                if (isAtBottom) {
-                    logDiv.scrollTop = logDiv.scrollHeight;
+                        } catch (e) { }
+                        return `<div>> ${displayMsg}</div>`;
+                    }).join("");
+                    if (isAtBottom) {
+                        logDiv.scrollTop = logDiv.scrollHeight;
+                    }
+                };
+                let logsToRender = [...state.logs];
+                if (this.isAnimatingDeal && this.animatingDealType && logsToRender.length > 0) {
+                    const lastLogStr = logsToRender[logsToRender.length - 1];
+                    if (lastLogStr.includes(`"${this.animatingDealType}"`)) {
+                        logsToRender.pop();
+                    }
                 }
+                renderLogsHTML(logsToRender);
                 this.updateControls(state);
                 if (localPlayer) {
                     const lastLog = state.logs.length > 0 ? state.logs[state.logs.length - 1] : "";
@@ -1886,15 +1985,13 @@
                             this.showMessage(t("msg_winner"));
                             this.bankruptcyScreenShown = true;
                         }
-                    }
-                    else if (isEliminated && state.status === "playing") {
+                    } else if (isEliminated && state.status === "playing") {
                         if (!this.bankruptcyScreenShown) {
                             this.sound.playLose();
                             this.showMessage(t("msg_bankruptcy"));
                             this.bankruptcyScreenShown = true;
                         }
-                    }
-                    else if (state.status === "waiting" && !isChampion) {
+                    } else if (state.status === "waiting" && !isChampion) {
                         this.bankruptcyScreenShown = false;
                     }
                 }
@@ -1904,6 +2001,402 @@
                     this.updateWaitingRoomUI(state, localId);
                 } else {
                     waitOverlay.classList.add("hidden");
+                }
+                const initialTargets = [];
+                if (dealType === "log_new_round") {
+                    const len = state.playerOrder.length;
+                    for (let r = 0; r < 2; r++) {
+                        for (let i = 0; i < len; i++) {
+                            const uid = state.playerOrder[(state.dealerIndex + 1 + i) % len];
+                            const tCont = document.getElementById(`cards-${uid}`);
+                            if (tCont && tCont.children[r]) {
+                                const realCard = tCont.children[r];
+                                realCard.style.opacity = '0';
+                                initialTargets.push({ realCard, uid, isFaceUp: uid === localId });
+                            }
+                        }
+                    }
+                } else if (dealType && dealType !== "showdown_flip") {
+                    let idxs = dealType === "log_phase_flop" ? [0, 1, 2] : (dealType === "log_phase_turn" ? [3] : [4]);
+                    idxs.forEach(idx => {
+                        const slot = document.getElementById(`comm-slot-${idx}`);
+                        if (slot && slot.firstElementChild) {
+                            const realCard = slot.firstElementChild;
+                            realCard.style.opacity = '0';
+                            slot.style.border = "2px dashed rgba(255, 255, 255, 0.2)";
+                            slot.style.backgroundColor = "rgba(0, 0, 0, 0.2)";
+                            slot.style.boxSizing = "border-box";
+                            initialTargets.push({ realCard, isFaceUp: true, slot: slot });
+                        }
+                    });
+                }
+                if (dealType === "showdown_flip") {
+                    const container = document.getElementById("seats-container");
+                    const targets = [];
+                    const len = state.playerOrder.length;
+                    const cRect = container.getBoundingClientRect();
+                    const scale = this.currentScale || 1;
+                    for (let i = 0; i < len; i++) {
+                        const uid = state.playerOrder[i];
+                        if (uid !== localId && !state.players[uid].folded) {
+                            const tCont = document.getElementById(`cards-${uid}`);
+                            if (tCont && tCont.children.length === 2) {
+                                for (let r = 0; r < 2; r++) {
+                                    const realCard = tCont.children[r];
+                                    const tRect = realCard.getBoundingClientRect();
+                                    const targetX = tRect.left - cRect.left + tRect.width / 2;
+                                    const targetY = tRect.top - cRect.top + tRect.height / 2;
+                                    realCard.style.opacity = '0';
+                                    const fCard = document.createElement("div");
+                                    fCard.className = "card card-back absolute z-50 ghost-card";
+                                    fCard.style.left = `${targetX}px`;
+                                    fCard.style.top = `${targetY}px`;
+                                    fCard.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                                    container.appendChild(fCard);
+                                    targets.push({ realCard, uid, fCard });
+                                }
+                            }
+                        }
+                    }
+                    if (targets.length === 0) {
+                        this.animatingDealType = null;
+                        this.isAnimatingDeal = false;
+                        this.frozenTableState = null;
+                        document.getElementById("pot-display").innerText = this.lastState.pot;
+                        const pk = PHASE_KEY_MAP[this.lastState.phase] || this.lastState.phase;
+                        document.getElementById("phase-display").innerText = t(pk);
+                        this.renderTableLayout(state, localId);
+                        for (let i = 0; i < 5; i++) {
+                            const slot = document.getElementById(`comm-slot-${i}`);
+                            if (slot && slot.firstElementChild && this.highlightCards.has(state.communityCards[i]?.id)) slot.firstElementChild.classList.add("winning-card");
+                        }
+                        this.updateControls(state);
+                    } else {
+                        setTimeout(() => {
+                            targets.forEach((t, k) => {
+                                const playerDelay = Math.floor(k / 2) * 200;
+                                setTimeout(() => {
+                                    t.fCard.style.transition = "transform 0.15s linear";
+                                    t.fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(90deg)`;
+                                    setTimeout(() => {
+                                        t.fCard.className = t.realCard.className + " absolute z-50 ghost-card";
+                                        t.fCard.innerHTML = t.realCard.innerHTML;
+                                        t.fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(0deg)`;
+                                        if (k % 2 === 0) this.sound.playCardFlip();
+                                        setTimeout(() => {
+                                            t.realCard.style.opacity = '1';
+                                            t.fCard.remove();
+                                        }, 150);
+                                    }, 150);
+                                }, playerDelay);
+                            });
+                            const totalDelay = Math.floor((targets.length - 1) / 2) * 200 + 350;
+                            setTimeout(() => {
+                                this.animatingDealType = null;
+                                this.isAnimatingDeal = false;
+                                this.frozenTableState = null;
+                                document.getElementById("pot-display").innerText = this.lastState.pot;
+                                const pk = PHASE_KEY_MAP[this.lastState.phase] || this.lastState.phase;
+                                document.getElementById("phase-display").innerText = t(pk);
+                                this.renderTableLayout(this.lastState, this.localPlayerId);
+                                for (let i = 0; i < 5; i++) {
+                                    const slot = document.getElementById(`comm-slot-${i}`);
+                                    if (slot && slot.firstElementChild && this.highlightCards.has(state.communityCards[i]?.id)) slot.firstElementChild.classList.add("winning-card");
+                                }
+                                this.updateControls(this.lastState);
+                            }, totalDelay);
+                        }, 100);
+                    }
+                } else if (dealType === "log_new_round") {
+                    const container = document.getElementById("seats-container");
+                    const cRect = container.getBoundingClientRect();
+                    let delayOffset = 0;
+                    if (cardsToCollect.length > 0) {
+                        const ghosts = cardsToCollect.map(c => {
+                            const g = document.createElement("div");
+                            g.className = c.className;
+                            g.style.opacity = '1';
+                            if (!g.classList.contains("absolute")) g.classList.add("absolute");
+                            if (!g.classList.contains("z-50")) g.classList.add("z-50");
+                            g.classList.add("ghost-card");
+                            g.style.left = `${c.x}px`;
+                            g.style.top = `${c.y}px`;
+                            g.style.transform = `translate(-50%, -50%) scale(${c.scale})`;
+                            g.innerHTML = c.html;
+                            container.appendChild(g);
+                            return { el: g, isFaceUp: c.isFaceUp, scale: c.scale };
+                        });
+                        delayOffset += 1500;
+                        setTimeout(() => {
+                            const oldDealerUid = this.customDeckTarget ? this.customDeckTarget.uid : null;
+                            if (oldDealerUid) {
+                                this.customDeckTarget = { uid: oldDealerUid, zone: 'dealing' };
+                                this.deckInDealingZone = true;
+                                this.renderTableLayout(displayState, this.localPlayerId);
+                            }
+                        }, delayOffset);
+                        delayOffset += 600;
+                        setTimeout(() => {
+                            ghosts.forEach((g, k) => {
+                                if (g.isFaceUp) {
+                                    g.el.style.transition = "transform 0.15s linear";
+                                    g.el.style.transform = `translate(-50%, -50%) scale(${g.scale}) rotateY(90deg)`;
+                                    setTimeout(() => {
+                                        g.el.className = "card card-back absolute z-50 ghost-card";
+                                        g.el.innerHTML = "";
+                                        g.el.style.transform = `translate(-50%, -50%) scale(${g.scale}) rotateY(0deg)`;
+                                        if (k % 2 === 0) this.sound.playCardFlip();
+                                    }, 150);
+                                }
+                            });
+                        }, delayOffset);
+                        delayOffset += 350;
+                        setTimeout(() => {
+                            const dp = document.getElementById("deck-pile");
+                            if (dp) {
+                                const dRect = dp.getBoundingClientRect();
+                                const dx = dRect.left - cRect.left + dRect.width / 2;
+                                const dy = dRect.top - cRect.top + dRect.height / 2;
+                                ghosts.forEach((g, idx) => {
+                                    g.el.style.transition = "left 0.4s ease-in-out, top 0.4s ease-in-out, transform 0.4s ease-in-out";
+                                    g.el.style.left = `${dx}px`;
+                                    g.el.style.top = `${dy}px`;
+                                    g.el.style.transform = `translate(-50%, -50%) scale(${this.currentScale || 1})`;
+                                    setTimeout(() => this.sound.playCardFly(), Math.min(idx * 30, 400));
+                                });
+                            }
+                        }, delayOffset);
+                        delayOffset += 450;
+                        setTimeout(() => {
+                            ghosts.forEach(g => g.el.remove());
+                            this.customDeckTarget = null;
+                            this.deckInDealingZone = true;
+                            if (displayState !== state) displayState.dealerIndex = this.lastState.dealerIndex;
+                            this.renderTableLayout(displayState, this.localPlayerId);
+                            renderLogsHTML(this.lastState.logs);
+                        }, delayOffset);
+                        delayOffset += 600;
+                    } else {
+                        delayOffset += 600;
+                        setTimeout(() => {
+                            this.renderTableLayout(displayState, this.localPlayerId);
+                            renderLogsHTML(this.lastState.logs);
+                        }, delayOffset - 100);
+                    }
+                    setTimeout(() => {
+                        const deckPile = document.getElementById("deck-pile");
+                        if (!deckPile) {
+                            this.deckInDealingZone = false;
+                            this.animatingDealType = null;
+                            this.isAnimatingDeal = false;
+                            this.frozenTableState = null;
+                            document.getElementById("pot-display").innerText = this.lastState.pot;
+                            const pk = PHASE_KEY_MAP[this.lastState.phase] || this.lastState.phase;
+                            document.getElementById("phase-display").innerText = t(pk);
+                            this.renderTableLayout(this.lastState, this.localPlayerId);
+                            renderLogsHTML(this.lastState.logs);
+                            this.updateControls(this.lastState);
+                            return;
+                        }
+                        const dRect = deckPile.getBoundingClientRect();
+                        const deckX = dRect.left - cRect.left + dRect.width / 2;
+                        const deckY = dRect.top - cRect.top + dRect.height / 2;
+                        const scale = this.currentScale || 1;
+                        initialTargets.forEach((t, k) => {
+                            setTimeout(() => {
+                                const tRect = t.realCard.getBoundingClientRect();
+                                const targetX = tRect.left - cRect.left + tRect.width / 2;
+                                const targetY = tRect.top - cRect.top + tRect.height / 2;
+                                const fCard = document.createElement("div");
+                                fCard.className = "card card-back absolute z-50 ghost-card";
+                                fCard.style.left = `${deckX}px`;
+                                fCard.style.top = `${deckY}px`;
+                                fCard.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                                fCard.style.transition = "left 0.3s ease-out, top 0.3s ease-out";
+                                container.appendChild(fCard);
+                                setTimeout(() => {
+                                    fCard.style.left = `${targetX}px`;
+                                    fCard.style.top = `${targetY}px`;
+                                    this.sound.playCardFly();
+                                }, 20);
+                                setTimeout(() => {
+                                    if (t.isFaceUp) {
+                                        fCard.style.transition = "transform 0.15s linear";
+                                        fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(90deg)`;
+                                        setTimeout(() => {
+                                            fCard.className = t.realCard.className + " absolute z-50 ghost-card";
+                                            fCard.innerHTML = t.realCard.innerHTML;
+                                            fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(0deg)`;
+                                            this.sound.playCardFlip();
+                                            setTimeout(() => {
+                                                t.realCard.style.opacity = '1';
+                                                fCard.remove();
+                                            }, 150);
+                                        }, 150);
+                                    } else {
+                                        t.realCard.style.opacity = '1';
+                                        fCard.remove();
+                                    }
+                                }, 320);
+                            }, k * 150);
+                        });
+                        setTimeout(() => {
+                            this.deckInDealingZone = false;
+                            this.animatingDealType = null;
+                            this.isAnimatingDeal = false;
+                            this.frozenTableState = null;
+                            document.getElementById("pot-display").innerText = this.lastState.pot;
+                            const pk = PHASE_KEY_MAP[this.lastState.phase] || this.lastState.phase;
+                            document.getElementById("phase-display").innerText = t(pk);
+                            this.renderTableLayout(this.lastState, this.localPlayerId);
+                            renderLogsHTML(this.lastState.logs);
+                            this.updateControls(this.lastState);
+                        }, initialTargets.length * 150 + 600);
+                    }, delayOffset);
+                } else if (dealType && dealType !== "showdown_flip") {
+                    const container = document.getElementById("seats-container");
+                    setTimeout(() => {
+                        const deckPile = document.getElementById("deck-pile");
+                        if (!deckPile) {
+                            initialTargets.forEach(t => {
+                                t.realCard.style.opacity = '1';
+                                if (t.slot) {
+                                    t.slot.style.border = "";
+                                    t.slot.style.backgroundColor = "";
+                                }
+                            });
+                            this.deckInDealingZone = false;
+                            this.animatingDealType = null;
+                            this.isAnimatingDeal = false;
+                            this.frozenTableState = null;
+                            document.getElementById("pot-display").innerText = this.lastState.pot;
+                            const pk = PHASE_KEY_MAP[this.lastState.phase] || this.lastState.phase;
+                            document.getElementById("phase-display").innerText = t(pk);
+                            this.renderTableLayout(this.lastState, this.localPlayerId);
+                            renderLogsHTML(this.lastState.logs);
+                            this.updateControls(this.lastState);
+                            return;
+                        }
+                        const cRect = container.getBoundingClientRect();
+                        const dRect = deckPile.getBoundingClientRect();
+                        const deckX = dRect.left - cRect.left + dRect.width / 2;
+                        const deckY = dRect.top - cRect.top + dRect.height / 2;
+                        const scale = this.currentScale || 1;
+                        initialTargets.forEach((t, k) => {
+                            setTimeout(() => {
+                                const tRect = t.realCard.getBoundingClientRect();
+                                const targetX = tRect.left - cRect.left + tRect.width / 2;
+                                const targetY = tRect.top - cRect.top + tRect.height / 2;
+                                const fCard = document.createElement("div");
+                                fCard.className = "card card-back absolute z-50 ghost-card";
+                                fCard.style.left = `${deckX}px`;
+                                fCard.style.top = `${deckY}px`;
+                                let fScale = t.slot ? 1 : scale;
+                                fCard.style.transform = `translate(-50%, -50%) scale(${fScale})`;
+                                fCard.style.transition = "left 0.3s ease-out, top 0.3s ease-out";
+                                container.appendChild(fCard);
+                                setTimeout(() => {
+                                    fCard.style.left = `${targetX}px`;
+                                    fCard.style.top = `${targetY}px`;
+                                    this.sound.playCardFly();
+                                }, 20);
+                                setTimeout(() => {
+                                    if (t.isFaceUp) {
+                                        fCard.style.transition = "transform 0.15s linear";
+                                        fCard.style.transform = `translate(-50%, -50%) scale(${fScale}) rotateY(90deg)`;
+                                        setTimeout(() => {
+                                            fCard.className = t.realCard.className + " absolute z-50 ghost-card";
+                                            fCard.innerHTML = t.realCard.innerHTML;
+                                            fCard.style.transform = `translate(-50%, -50%) scale(${fScale}) rotateY(0deg)`;
+                                            this.sound.playCardFlip();
+                                            setTimeout(() => {
+                                                t.realCard.style.opacity = '1';
+                                                fCard.remove();
+                                                if (t.slot) {
+                                                    setTimeout(() => {
+                                                        t.slot.style.border = "";
+                                                        t.slot.style.backgroundColor = "";
+                                                        t.slot.style.boxSizing = "";
+                                                    }, 100);
+                                                }
+                                            }, 150);
+                                        }, 150);
+                                    } else {
+                                        t.realCard.style.opacity = '1';
+                                        fCard.remove();
+                                        if (t.slot) {
+                                            setTimeout(() => {
+                                                t.slot.style.border = "";
+                                                t.slot.style.backgroundColor = "";
+                                                t.slot.style.boxSizing = "";
+                                            }, 100);
+                                        }
+                                    }
+                                }, 320);
+                            }, k * 150);
+                        });
+                        setTimeout(() => {
+                            this.deckInDealingZone = false;
+                            this.animatingDealType = null;
+                            this.isAnimatingDeal = false;
+                            this.frozenTableState = null;
+                            document.getElementById("pot-display").innerText = this.lastState.pot;
+                            const pk = PHASE_KEY_MAP[this.lastState.phase] || this.lastState.phase;
+                            document.getElementById("phase-display").innerText = t(pk);
+                            this.renderTableLayout(this.lastState, this.localPlayerId);
+                            for (let i = 0; i < 5; i++) {
+                                const slot = document.getElementById(`comm-slot-${i}`);
+                                if (slot && slot.firstElementChild && this.highlightCards.has(state.communityCards[i]?.id)) slot.firstElementChild.classList.add("winning-card");
+                            }
+                            renderLogsHTML(this.lastState.logs);
+                            this.updateControls(this.lastState);
+                        }, initialTargets.length * 150 + 1200);
+                    }, 600);
+                }
+                if (foldGhostCards.length > 0) {
+                    const container = document.getElementById("seats-container");
+                    const cRect = container.getBoundingClientRect();
+                    const scale = this.currentScale || 1;
+                    foldGhostCards.forEach((c, k) => {
+                        const g = document.createElement("div");
+                        g.className = c.className.replace(/z-\d+/g, '') + " absolute z-20 ghost-card";
+                        g.style.left = `${c.x}px`;
+                        g.style.top = `${c.y}px`;
+                        g.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                        g.innerHTML = c.html;
+                        container.appendChild(g);
+                        let delay = 0;
+                        if (c.isFaceUp) {
+                            setTimeout(() => {
+                                g.style.transition = "transform 0.15s linear";
+                                g.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(90deg)`;
+                                setTimeout(() => {
+                                    g.className = "card card-back absolute z-20 ghost-card";
+                                    g.innerHTML = "";
+                                    g.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(0deg)`;
+                                    this.sound.playCardFlip();
+                                }, 150);
+                            }, 50);
+                            delay += 200;
+                        }
+                        setTimeout(() => {
+                            let targetX = cRect.width / 2;
+                            let targetY = cRect.height / 2;
+                            const dp = document.getElementById("deck-pile");
+                            if (dp) {
+                                const dRect = dp.getBoundingClientRect();
+                                targetX = dRect.left - cRect.left + dRect.width / 2;
+                                targetY = dRect.top - cRect.top + dRect.height / 2;
+                            }
+                            g.style.transition = "left 0.4s ease-out, top 0.4s ease-out, transform 0.4s ease-out";
+                            g.style.left = `${targetX}px`;
+                            g.style.top = `${targetY}px`;
+                            setTimeout(() => this.sound.playCardFly(), k * 60);
+                        }, delay + 50);
+                        setTimeout(() => {
+                            g.remove();
+                        }, delay + 450);
+                    });
                 }
             }
             renderTableLayout(state, localId) {
@@ -1928,9 +2421,14 @@
                     if (num > 8) scale = 0.65;
                     radiusX = 0.4;
                 }
+                this.currentScale = scale;
                 const rx = w * radiusX;
                 const ry = h * radiusY;
                 const activeSeatIds = new Set();
+                let dealerX = null;
+                let dealerY = null;
+                const hideHighlights = !!this.animatingDealType;
+                let seatCoords = {};
                 playerIdsToRender.forEach((uid, i) => {
                     const p = state.players[uid];
                     if (!p) return;
@@ -1941,41 +2439,31 @@
                         seatDiv = document.createElement("div");
                         seatDiv.id = seatId;
                         seatDiv.className = "player-seat";
-                        seatDiv.innerHTML = `
-                            <div id="chat-${p.uid}" class="chat-bubble hidden"></div>
-                            <div id="hand-label-${p.uid}" class="hand-label-effect absolute z-30" style="top:-95px;left:50%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;"></div>
-                            <div id="cards-${p.uid}" class="absolute flex space-x-1 z-10 transition-all" style="top:-50px;"></div>
-                            <div class="player-info-box relative z-20">
-                            <div id="dealer-${p.uid}" class="dealer-btn hidden">D</div>
-                            <div id="name-${p.uid}" class="font-bold text-yellow-400 truncate text-sm tracking-wide"></div>
-                            <div class="text-white text-xs font-mono">$<span id="chips-${p.uid}"></span></div>
-                            <div id="status-${p.uid}" class="text-gray-400 text-[10px] h-4 truncate font-bold uppercase mt-1"></div>
-                        </div>`;
+                        seatDiv.innerHTML = `<div id="chat-${p.uid}" class="chat-bubble hidden"></div><div id="hand-label-${p.uid}" class="hand-label-effect absolute z-30" style="top:-95px;left:50%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;"></div><div id="cards-${p.uid}" class="absolute flex space-x-1 z-10 transition-all" style="top:-50px;"></div><div class="player-info-box relative z-20"><div id="dealer-${p.uid}" class="dealer-btn hidden">D</div><div id="name-${p.uid}" class="font-bold text-yellow-400 truncate text-sm tracking-wide"></div><div class="text-white text-xs font-mono">$<span id="chips-${p.uid}"></span></div><div id="status-${p.uid}" class="text-gray-400 text-[10px] h-4 truncate font-bold uppercase mt-1"></div></div>`;
                         container.appendChild(seatDiv);
                     }
                     const offsetIndex = (i - renderIndex + num) % num;
                     const angle = Math.PI / 2 + (offsetIndex * (2 * Math.PI)) / num;
                     const x = cx + rx * Math.cos(angle);
                     const y = cy + ry * Math.sin(angle);
+                    seatCoords[uid] = { x, y };
                     seatDiv.style.left = `${x - 60}px`;
                     seatDiv.style.top = `${y - 55}px`;
                     seatDiv.style.transform = `scale(${scale})`;
+                    if (i === state.dealerIndex) {
+                        dealerX = x;
+                        dealerY = y;
+                    }
                     const nameEl = seatDiv.querySelector(`#name-${p.uid}`);
                     nameEl.innerText = p.name;
                     nameEl.style.color = window.getPlayerColor(p.name);
                     nameEl.classList.remove("text-yellow-400");
-                    const bubble =
-                        seatDiv.querySelector(`#chat-${p.uid}`);
+                    const bubble = seatDiv.querySelector(`#chat-${p.uid}`);
                     if (bubble) {
-                        const latest =
-                            (state.chatMessages || [])
-                                .filter(m => m.uid === p.uid)
-                                .slice(-1)[0];
+                        const latest = (state.chatMessages || []).filter(m => m.uid === p.uid).slice(-1)[0];
                         if (latest) {
                             bubble.innerText = latest.text;
-                            bubble.innerText = latest.text;
                             bubble.style.color = window.getPlayerColor(p.name);
-                            bubble.classList.remove("hidden");
                             bubble.classList.remove("hidden");
                         } else {
                             bubble.classList.add("hidden");
@@ -1997,13 +2485,12 @@
                     } else {
                         seatDiv.classList.remove("active-player");
                     }
-                    if (state.highlightWinner === p.uid) seatDiv.classList.add("winner-highlight");
+                    if (state.highlightWinner === p.uid && !hideHighlights) seatDiv.classList.add("winner-highlight");
                     else seatDiv.classList.remove("winner-highlight");
                     seatDiv.style.opacity = p.folded ? 0.4 : 1;
                     const cardsContainer = document.getElementById(`cards-${p.uid}`);
                     const activePlayersCount = Object.values(state.players).filter(player => !player.folded).length;
-                    const shouldShowFace = !p.folded && p.holeCards && p.holeCards.length > 0 &&
-                        (p.uid === localId || (state.phase === "showdown" && activePlayersCount > 1));
+                    const shouldShowFace = !p.folded && p.holeCards && p.holeCards.length > 0 && (p.uid === localId || (state.phase === "showdown" && activePlayersCount > 1));
                     if (shouldShowFace) {
                         if (cardsContainer.querySelector('.card-back')) cardsContainer.innerHTML = "";
                         p.holeCards.forEach((c, cardIdx) => {
@@ -2015,7 +2502,7 @@
                                 else cardsContainer.appendChild(newCard);
                                 cardEl = newCard;
                             }
-                            if (this.highlightCards.has(c.id)) {
+                            if (!hideHighlights && this.highlightCards.has(c.id)) {
                                 if (!cardEl.classList.contains("winning-card")) cardEl.classList.add("winning-card");
                             } else {
                                 cardEl.classList.remove("winning-card");
@@ -2035,19 +2522,52 @@
                     }
                     const labelEl = document.getElementById(`hand-label-${p.uid}`);
                     if (labelEl) {
-                        if (state.phase === 'showdown' && !p.folded && p.bestHand && p.bestHand.name) {
+                        if (state.phase === 'showdown' && !p.folded && p.bestHand && p.bestHand.name && !hideHighlights) {
                             const isWinner = (state.highlightWinners || []).includes(p.uid);
                             const handName = t(p.bestHand.name);
-                            const newHtml = isWinner
-                                ? `<span class="winner-hand-label">${handName}</span>`
-                                : `<span class="loser-hand-label">${handName}</span>`;
+                            const newHtml = isWinner ? `<span class="winner-hand-label">${handName}</span>` : `<span class="loser-hand-label">${handName}</span>`;
                             if (labelEl.innerHTML !== newHtml) labelEl.innerHTML = newHtml;
                         } else {
                             if (labelEl.innerHTML !== '') labelEl.innerHTML = '';
                         }
                     }
                 });
+                if (dealerX !== null && dealerY !== null) {
+                    let deckPile = document.getElementById("deck-pile");
+                    if (!deckPile) {
+                        deckPile = document.createElement("div");
+                        deckPile.id = "deck-pile";
+                        deckPile.className = "card card-back absolute z-30";
+                        deckPile.style.transition = "left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.6s, transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)";
+                        container.appendChild(deckPile);
+                    }
+                    deckPile.style.boxShadow = "1px 1px 0 #ffffff, 2px 2px 0 #ffffff, 3px 3px 4px rgba(0,0,0,0.5)";
+                    let targetCenterX, targetCenterY;
+                    let refX = dealerX;
+                    let refY = dealerY;
+                    let isDealing = this.deckInDealingZone;
+                    if (this.customDeckTarget && seatCoords[this.customDeckTarget.uid]) {
+                        refX = seatCoords[this.customDeckTarget.uid].x;
+                        refY = seatCoords[this.customDeckTarget.uid].y;
+                        isDealing = this.customDeckTarget.zone === 'dealing';
+                    }
+                    if (isDealing) {
+                        targetCenterX = refX;
+                        targetCenterY = refY;
+                    } else {
+                        targetCenterX = ((refX > cx + 5) || (Math.abs(refX - cx) <= 5 && refY > cy)) ? (refX + 95 * scale) : (refX - 95 * scale);
+                        targetCenterY = refY;
+                    }
+                    deckPile.style.left = `${targetCenterX}px`;
+                    deckPile.style.top = `${targetCenterY}px`;
+                    deckPile.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                    deckPile.style.display = "";
+                } else {
+                    let deckPile = document.getElementById("deck-pile");
+                    if (deckPile) deckPile.style.display = "none";
+                }
                 Array.from(container.children).forEach(child => {
+                    if (child.id === "deck-pile" || child.classList.contains("ghost-card")) return;
                     if (!activeSeatIds.has(child.id)) {
                         container.removeChild(child);
                     }
@@ -2057,14 +2577,16 @@
                 if (!state || !state.players || !this.localPlayerId) return;
                 const localPlayer = state.players[this.localPlayerId];
                 const controls = document.getElementById("player-controls");
-                if (!localPlayer) {
+                if (!localPlayer || this.animatingDealType) {
                     controls.classList.add("opacity-50", "pointer-events-none", "translate-y-2");
-                    const btnCheck = document.getElementById("btn-check");
-                    if (btnCheck) btnCheck.innerText = "SPECTATING";
-                    btnCheck.classList.remove("hidden");
-                    document.getElementById("btn-call").classList.add("hidden");
-                    document.getElementById("btn-raise").classList.add("hidden");
-                    document.getElementById("raise-slider-container").classList.add("hidden");
+                    if (!localPlayer) {
+                        const btnCheck = document.getElementById("btn-check");
+                        if (btnCheck) btnCheck.innerText = "SPECTATING";
+                        btnCheck.classList.remove("hidden");
+                        document.getElementById("btn-call").classList.add("hidden");
+                        document.getElementById("btn-raise").classList.add("hidden");
+                        document.getElementById("raise-slider-container").classList.add("hidden");
+                    }
                     return;
                 }
                 const currentTurnPlayerId = state.playerOrder[state.currentPlayerIndex];
@@ -2218,7 +2740,7 @@
                 const diff = state.currentMaxBet - player.currentBet;
                 const bb = state.config?.bigBlind || 20;
                 const pot = state.pot;
-                const thinkTime = 1500 + Math.random() * 2500;
+                const thinkTime = 500 + Math.random() * 500;
                 setTimeout(() => {
                     let action = 'fold';
                     let amount = 0;
@@ -2456,13 +2978,13 @@
             init() {
                 let storedId = null;
                 try {
-                    storedId = sessionStorage.getItem("poker_user_id");
+                    storedId = localStorage.getItem("poker_user_id");
                     if (!storedId) {
                         storedId = "user_" + Math.random().toString(36).substr(2, 9);
-                        sessionStorage.setItem("poker_user_id", storedId);
+                        localStorage.setItem("poker_user_id", storedId);
                     }
                 } catch (e) {
-                    console.warn("SessionStorage access denied by browser, using temporary ID.");
+                    console.warn("LocalStorage access denied by browser, using temporary ID.");
                     storedId = "user_" + Math.random().toString(36).substr(2, 9);
                 }
                 this.localUserId = storedId;
@@ -2482,6 +3004,26 @@
                         }
                     }
                 });
+                setTimeout(() => {
+                    try {
+                        const savedRoomId = localStorage.getItem("poker_room_id");
+                        if (savedRoomId) {
+                            console.log("检测到未断开的房间，正在尝试自动重连...", savedRoomId);
+                            if (typeof this.joinRoom === "function") {
+                                this.joinRoom(savedRoomId);
+                            } else {
+                                const input = document.getElementById("room-id-input") || document.getElementById("room-input");
+                                const btn = document.getElementById("join-btn") || document.getElementById("join-room-btn");
+                                if (input && btn) {
+                                    input.value = savedRoomId;
+                                    btn.click();
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error("自动重连初始化失败:", e);
+                    }
+                }, 1000);
             }
             initMQTT() {
                 try {
@@ -2614,6 +3156,7 @@
                 this.disableRoomButtons(true);
                 this.isHost = true;
                 this.currentRoomId = roomId;
+                try { localStorage.setItem("poker_room_id", roomId); } catch (e) { }
                 const hostPeerId = `th-p2p-room-${roomId}`;
                 this.peer = new Peer(hostPeerId, {
                     debug: 2,
@@ -2641,6 +3184,7 @@
                         if (this.peer) this.peer.destroy();
                         this.isHost = false;
                         this.currentRoomId = null;
+                        try { localStorage.removeItem("poker_room_id"); } catch (e) { }
                     }
                 }, 15000);
                 this.peer.on('open', (id) => {
@@ -2682,6 +3226,7 @@
                     this.disableRoomButtons(false);
                     this.isHost = false;
                     this.currentRoomId = null;
+                    try { localStorage.removeItem("poker_room_id"); } catch (e) { }
                 });
             }
             initGameState() {
@@ -2760,6 +3305,7 @@
                 this.disableRoomButtons(true);
                 this.isHost = false;
                 this.currentRoomId = roomId;
+                try { localStorage.setItem("poker_room_id", roomId); } catch (e) { }
                 let targetPeerId = `th-p2p-room-${roomId}`;
                 if (this.activeRooms[roomId] && this.activeRooms[roomId].peerId) {
                     targetPeerId = this.activeRooms[roomId].peerId;
@@ -2789,6 +3335,7 @@
                         this.disableRoomButtons(false);
                         if (this.peer) this.peer.destroy();
                         this.currentRoomId = null;
+                        try { localStorage.removeItem("poker_room_id"); } catch (e) { }
                     }
                 }, 15000);
                 this.peer.on('open', (id) => {
@@ -2983,6 +3530,7 @@
                 this.localUserId = "player_" + Math.random().toString(36).substr(2, 6);
                 this.isHost = true;
                 this.currentRoomId = "LOCAL_VS_AI";
+                try { localStorage.setItem("poker_room_id", "LOCAL_VS_AI"); } catch (e) { }
                 this.enterGameRoom();
                 this.initGameState();
                 for (let i = 0; i < 3; i++) {
@@ -3038,6 +3586,10 @@
                 let state = this.gameUI.lastState;
                 if (!state || state.phase === 'waiting' || state.phase === 'showdown' || state.status !== 'playing') {
                     this.aiThinkingUid = null;
+                    return;
+                }
+                if (this.gameUI.isAnimatingDeal) {
+                    setTimeout(() => this.checkAITurn(), 200);
                     return;
                 }
                 let currentPlayerId = state.playerOrder[state.currentPlayerIndex];
@@ -3163,6 +3715,7 @@
                     this.peer = null;
                 }
                 this.currentRoomId = null;
+                try { localStorage.removeItem("poker_room_id"); } catch (e) { }
                 this.isHost = false;
                 this.connections = [];
                 this.hostConnection = null;
@@ -3411,8 +3964,13 @@
             playChip() {
                 this.playTone(2000, "square", 0.05, 0.03);
             }
-            playCard() {
-                this.playTone(800, "sine", 0.1, 0.02);
+            playCardFly() {
+                this.playTone(300, "triangle", 0.08, 0.02);
+                this.playTone(200, "sine", 0.08, 0.02, 0.02);
+            }
+            playCardFlip() {
+                this.playTone(1500, "square", 0.02, 0.02);
+                this.playTone(1000, "triangle", 0.03, 0.02, 0.01);
             }
             playCheck() {
                 this.playTone(300, "sine", 0.05, 0.1);
