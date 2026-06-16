@@ -2467,7 +2467,7 @@
                     if (!seatDiv) {
                         seatDiv = document.createElement("div");
                         seatDiv.id = seatId;
-                        seatDiv.className = "player-seat";
+                        seatDiv.className = "player-seat z-10";
                         seatDiv.innerHTML = `<div id="chat-${p.uid}" class="chat-bubble hidden"></div><div id="hand-label-${p.uid}" class="hand-label-effect absolute z-30" style="top:-95px;left:50%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;"></div><div id="cards-${p.uid}" class="absolute flex space-x-1 z-30 transition-all" style="top:-50px;"></div><div class="player-info-box relative z-40"><div id="dealer-${p.uid}" class="dealer-btn hidden">D</div><div id="name-${p.uid}" class="font-bold text-yellow-400 truncate text-sm tracking-wide"></div><div class="text-white text-xs font-mono">$<span id="chips-${p.uid}"></span></div><div id="status-${p.uid}" class="text-gray-400 text-[10px] h-4 truncate font-bold uppercase mt-1"></div></div>`;
                         container.appendChild(seatDiv);
                     }
