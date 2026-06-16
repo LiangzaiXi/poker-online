@@ -589,7 +589,7 @@
             <div id="table"
                 class="poker-table w-[95vw] h-[55vh] md:w-[800px] md:h-[450px] max-w-full relative transition-all duration-500">
                 <div id="community-area"
-                    class="absolute top-[50%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-20 transition-opacity duration-200">
+                    class="absolute top-[50%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10 transition-opacity duration-200">
                     <div id="community-cards"
                         class="flex flex-wrap justify-center items-center gap-1 sm:gap-2 max-w-[150px] md:max-w-none transition-all duration-300">
                         <div id="comm-slot-0" class="card-placeholder"></div>
@@ -2464,7 +2464,7 @@
                         seatDiv = document.createElement("div");
                         seatDiv.id = seatId;
                         seatDiv.className = "player-seat";
-                        seatDiv.innerHTML = `<div id="chat-${p.uid}" class="chat-bubble hidden"></div><div id="hand-label-${p.uid}" class="hand-label-effect absolute z-30" style="top:-95px;left:50%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;"></div><div id="cards-${p.uid}" class="absolute flex space-x-1 z-10 transition-all" style="top:-50px;"></div><div class="player-info-box relative z-20"><div id="dealer-${p.uid}" class="dealer-btn hidden">D</div><div id="name-${p.uid}" class="font-bold text-yellow-400 truncate text-sm tracking-wide"></div><div class="text-white text-xs font-mono">$<span id="chips-${p.uid}"></span></div><div id="status-${p.uid}" class="text-gray-400 text-[10px] h-4 truncate font-bold uppercase mt-1"></div></div>`;
+                        seatDiv.innerHTML = `<div id="chat-${p.uid}" class="chat-bubble hidden"></div><div id="hand-label-${p.uid}" class="hand-label-effect absolute z-30" style="top:-95px;left:50%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;"></div><div id="cards-${p.uid}" class="absolute flex space-x-1 z-30 transition-all" style="top:-50px;"></div><div class="player-info-box relative z-40"><div id="dealer-${p.uid}" class="dealer-btn hidden">D</div><div id="name-${p.uid}" class="font-bold text-yellow-400 truncate text-sm tracking-wide"></div><div class="text-white text-xs font-mono">$<span id="chips-${p.uid}"></span></div><div id="status-${p.uid}" class="text-gray-400 text-[10px] h-4 truncate font-bold uppercase mt-1"></div></div>`;
                         container.appendChild(seatDiv);
                     }
                     const offsetIndex = (i - renderIndex + num) % num;
@@ -2562,7 +2562,7 @@
                     if (!deckPile) {
                         deckPile = document.createElement("div");
                         deckPile.id = "deck-pile";
-                        deckPile.className = "card card-back absolute z-30";
+                        deckPile.className = "card card-back absolute z-20";
                         deckPile.style.transition = "left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.6s, transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)";
                         container.appendChild(deckPile);
                     }
@@ -2579,9 +2579,11 @@
                     if (isDealing) {
                         targetCenterX = refX;
                         targetCenterY = refY - 20;
+                        deckPile.style.zIndex = '30';
                     } else {
                         targetCenterX = ((refX > cx + 5) || (Math.abs(refX - cx) <= 5 && refY > cy)) ? (refX + 95 * scale) : (refX - 95 * scale);
                         targetCenterY = refY - 20;
+                        deckPile.style.zIndex = '5';
                     }
                     deckPile.style.left = `${targetCenterX}px`;
                     deckPile.style.top = `${targetCenterY}px`;
