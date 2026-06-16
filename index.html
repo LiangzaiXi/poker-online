@@ -140,7 +140,6 @@
         .card.winning-card {
             box-shadow: 0 0 15px 5px rgba(251, 191, 36, 0.9);
             border: 3px solid #fbbf24;
-            z-index: 100;
         }
 
         .poker-table {
@@ -177,6 +176,7 @@
             justify-content: center;
             transform-origin: center center;
             pointer-events: none;
+            z-index: 45;
         }
 
         .chat-bubble {
@@ -1810,6 +1810,17 @@
                         this.isAnimatingDeal = true;
                         if (oldState) {
                             this.frozenTableState = JSON.parse(JSON.stringify(oldState));
+                            if (["log_phase_flop", "log_phase_turn", "log_phase_river"].includes(logKey)) {
+                                Object.keys(state.players).forEach(uid => {
+                                    const pNow = state.players[uid];
+                                    const pOld = oldState.players[uid];
+                                    if (pNow && pOld) {
+                                        this.frozenTableState.players[uid].chips = pNow.chips;
+                                        this.frozenTableState.players[uid].currentBet = pNow.currentBet;
+                                        this.frozenTableState.players[uid].status = pNow.status;
+                                    }
+                                });
+                            }
                         }
                     }
                     if (logKey === "log_fold") this.sound.playFold();
@@ -1825,6 +1836,37 @@
                     this.isAnimatingDeal = true;
                     if (oldState) {
                         this.frozenTableState = JSON.parse(JSON.stringify(oldState));
+                    }
+                }
+                if (this.frozenTableState && oldState && ["log_phase_flop", "log_phase_turn", "log_phase_river", "showdown_flip"].includes(dealType)) {
+                    let activeUid = oldState.playerOrder[oldState.currentPlayerIndex];
+                    if (activeUid) {
+                        let lastActionChipsDeducted = state.pot - oldState.pot;
+                        if (lastActionChipsDeducted < 0) lastActionChipsDeducted = 0;
+                        this.frozenTableState.pot = oldState.pot + lastActionChipsDeducted;
+                        this.frozenTableState.playerOrder.forEach(uid => {
+                            if (this.frozenTableState.players[uid] && oldState.players[uid]) {
+                                if (uid === activeUid) {
+                                    this.frozenTableState.players[uid].chips = oldState.players[uid].chips - lastActionChipsDeducted;
+                                    this.frozenTableState.players[uid].currentBet = oldState.players[uid].currentBet + lastActionChipsDeducted;
+                                    if (this.frozenTableState.players[uid].chips === 0 && lastActionChipsDeducted > 0) {
+                                        this.frozenTableState.players[uid].status = "status_all_in";
+                                    } else if (state.players[uid].folded && !oldState.players[uid].folded) {
+                                        this.frozenTableState.players[uid].status = "status_fold";
+                                    } else if (lastActionChipsDeducted === 0) {
+                                        this.frozenTableState.players[uid].status = "status_check";
+                                    } else if (this.frozenTableState.players[uid].currentBet === oldState.currentMaxBet) {
+                                        this.frozenTableState.players[uid].status = "status_call";
+                                    } else {
+                                        this.frozenTableState.players[uid].status = "status_raise";
+                                    }
+                                } else {
+                                    this.frozenTableState.players[uid].chips = oldState.players[uid].chips;
+                                    this.frozenTableState.players[uid].currentBet = oldState.players[uid].currentBet;
+                                    this.frozenTableState.players[uid].status = oldState.players[uid].status;
+                                }
+                            }
+                        });
                     }
                 }
                 const newChats = state.chatMessages || [];
@@ -2056,7 +2098,7 @@
                                     const targetY = tRect.top - cRect.top + tRect.height / 2;
                                     realCard.style.opacity = '0';
                                     const fCard = document.createElement("div");
-                                    fCard.className = "card card-back absolute z-50 ghost-card";
+                                    fCard.className = "card card-back absolute z-30 ghost-card";
                                     fCard.style.left = `${targetX}px`;
                                     fCard.style.top = `${targetY}px`;
                                     fCard.style.transform = `translate(-50%, -50%) scale(${scale})`;
@@ -2089,16 +2131,12 @@
                                     t.fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(90deg)`;
                                     setTimeout(() => {
                                         const cData = state.players[t.uid].holeCards[t.cardIdx];
-                                        let cClass = `card ${cData.color} absolute z-50 ghost-card`;
-                                        if (this.highlightCards.has(cData.id)) cClass += " winning-card";
-                                        t.fCard.className = cClass;
+                                        t.fCard.className = `card ${cData.color} absolute z-30 ghost-card`;
                                         t.fCard.innerHTML = `<span class="absolute top-0 left-1 text-xs">${cData.rank}</span><span class="text-2xl">${cData.suit}</span>`;
                                         t.fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(0deg)`;
                                         if (k % 2 === 0) this.sound.playCardFlip();
                                         setTimeout(() => {
-                                            let rClass = `card ${cData.color}`;
-                                            if (this.highlightCards.has(cData.id)) rClass += " winning-card";
-                                            t.realCard.className = rClass;
+                                            t.realCard.className = `card ${cData.color}`;
                                             t.realCard.innerHTML = `<span class="absolute top-0 left-1 text-xs">${cData.rank}</span><span class="text-2xl">${cData.suit}</span>`;
                                             t.realCard.style.opacity = '1';
                                             t.fCard.remove();
@@ -2131,11 +2169,8 @@
                     if (cardsToCollect.length > 0) {
                         const ghosts = cardsToCollect.map(c => {
                             const g = document.createElement("div");
-                            g.className = c.className;
+                            g.className = c.className.replace(/z-\d+/g, '').trim() + " absolute z-30 ghost-card";
                             g.style.opacity = '1';
-                            if (!g.classList.contains("absolute")) g.classList.add("absolute");
-                            if (!g.classList.contains("z-50")) g.classList.add("z-50");
-                            g.classList.add("ghost-card");
                             g.style.left = `${c.x}px`;
                             g.style.top = `${c.y}px`;
                             g.style.transform = `translate(-50%, -50%) scale(${c.scale})`;
@@ -2159,7 +2194,7 @@
                                     g.el.style.transition = "transform 0.15s linear";
                                     g.el.style.transform = `translate(-50%, -50%) scale(${g.scale}) rotateY(90deg)`;
                                     setTimeout(() => {
-                                        g.el.className = "card card-back absolute z-50 ghost-card";
+                                        g.el.className = "card card-back absolute z-30 ghost-card";
                                         g.el.innerHTML = "";
                                         g.el.style.transform = `translate(-50%, -50%) scale(${g.scale}) rotateY(0deg)`;
                                         if (k % 2 === 0) this.sound.playCardFlip();
@@ -2225,7 +2260,7 @@
                                 const targetX = tRect.left - cRect.left + tRect.width / 2;
                                 const targetY = tRect.top - cRect.top + tRect.height / 2;
                                 const fCard = document.createElement("div");
-                                fCard.className = "card card-back absolute z-50 ghost-card";
+                                fCard.className = "card card-back absolute z-30 ghost-card";
                                 fCard.style.left = `${deckX}px`;
                                 fCard.style.top = `${deckY}px`;
                                 fCard.style.transform = `translate(-50%, -50%) scale(${scale})`;
@@ -2241,7 +2276,7 @@
                                         fCard.style.transition = "transform 0.15s linear";
                                         fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(90deg)`;
                                         setTimeout(() => {
-                                            fCard.className = t.realCard.className + " absolute z-50 ghost-card";
+                                            fCard.className = t.realCard.className + " absolute z-30 ghost-card";
                                             fCard.innerHTML = t.realCard.innerHTML;
                                             fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(0deg)`;
                                             this.sound.playCardFlip();
@@ -2313,7 +2348,7 @@
                                 const targetX = tRect.left - cRect.left + tRect.width / 2;
                                 const targetY = tRect.top - cRect.top + tRect.height / 2;
                                 const fCard = document.createElement("div");
-                                fCard.className = "card card-back absolute z-50 ghost-card";
+                                fCard.className = "card card-back absolute z-30 ghost-card";
                                 fCard.style.left = `${deckX}px`;
                                 fCard.style.top = `${deckY}px`;
                                 fCard.style.transform = `translate(-50%, -50%) scale(${scale})`;
@@ -2329,7 +2364,7 @@
                                         fCard.style.transition = "transform 0.15s linear";
                                         fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(90deg)`;
                                         setTimeout(() => {
-                                            fCard.className = t.realCard.className + " absolute z-50 ghost-card";
+                                            fCard.className = t.realCard.className + " absolute z-30 ghost-card";
                                             fCard.innerHTML = t.realCard.innerHTML;
                                             fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(0deg)`;
                                             this.sound.playCardFlip();
@@ -2467,7 +2502,7 @@
                     if (!seatDiv) {
                         seatDiv = document.createElement("div");
                         seatDiv.id = seatId;
-                        seatDiv.className = "player-seat z-10";
+                        seatDiv.className = "player-seat";
                         seatDiv.innerHTML = `<div id="chat-${p.uid}" class="chat-bubble hidden"></div><div id="hand-label-${p.uid}" class="hand-label-effect absolute z-30" style="top:-95px;left:50%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;"></div><div id="cards-${p.uid}" class="absolute flex space-x-1 z-30 transition-all" style="top:-50px;"></div><div class="player-info-box relative z-40"><div id="dealer-${p.uid}" class="dealer-btn hidden">D</div><div id="name-${p.uid}" class="font-bold text-yellow-400 truncate text-sm tracking-wide"></div><div class="text-white text-xs font-mono">$<span id="chips-${p.uid}"></span></div><div id="status-${p.uid}" class="text-gray-400 text-[10px] h-4 truncate font-bold uppercase mt-1"></div></div>`;
                         container.appendChild(seatDiv);
                     }
@@ -2583,7 +2618,7 @@
                     if (isDealing) {
                         targetCenterX = refX;
                         targetCenterY = refY;
-                        deckPile.style.zIndex = '50';
+                        deckPile.style.zIndex = '30';
                     } else {
                         targetCenterX = ((refX > cx + 5) || (Math.abs(refX - cx) <= 5 && refY > cy)) ? (refX + 95 * scale) : (refX - 95 * scale);
                         targetCenterY = refY;
