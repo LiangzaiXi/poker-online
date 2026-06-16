@@ -2383,7 +2383,7 @@
                     const scale = this.currentScale || 1;
                     foldGhostCards.forEach((c, k) => {
                         const g = document.createElement("div");
-                        g.className = c.className.replace(/z-\d+/g, '') + " absolute z-10 ghost-card";
+                        g.className = c.className.replace(/z-\d+/g, '') + " absolute z-0 ghost-card";
                         g.style.left = `${c.x}px`;
                         g.style.top = `${c.y}px`;
                         g.style.transform = `translate(-50%, -50%) scale(${scale})`;
@@ -2395,7 +2395,7 @@
                                 g.style.transition = "transform 0.15s linear";
                                 g.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(90deg)`;
                                 setTimeout(() => {
-                                    g.className = "card card-back absolute z-20 ghost-card";
+                                    g.className = "card card-back absolute z-0 ghost-card";
                                     g.innerHTML = "";
                                     g.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(0deg)`;
                                     this.sound.playCardFlip();
@@ -2582,12 +2582,16 @@
                     }
                     if (isDealing) {
                         targetCenterX = refX;
-                        targetCenterY = refY - 20;
-                        deckPile.style.zIndex = '30';
+                        targetCenterY = refY;
+                        deckPile.style.zIndex = '50';
                     } else {
                         targetCenterX = ((refX > cx + 5) || (Math.abs(refX - cx) <= 5 && refY > cy)) ? (refX + 95 * scale) : (refX - 95 * scale);
-                        targetCenterY = refY - 20;
-                        deckPile.style.zIndex = '5';
+                        targetCenterY = refY;
+                        setTimeout(() => {
+                            if (!this.deckInDealingZone && !this.isAnimatingDeal) {
+                                deckPile.style.zIndex = '5';
+                            }
+                        }, 600);
                     }
                     deckPile.style.left = `${targetCenterX}px`;
                     deckPile.style.top = `${targetCenterY}px`;
