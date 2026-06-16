@@ -2578,10 +2578,10 @@
                     }
                     if (isDealing) {
                         targetCenterX = refX;
-                        targetCenterY = refY;
+                        targetCenterY = refY - 20;
                     } else {
                         targetCenterX = ((refX > cx + 5) || (Math.abs(refX - cx) <= 5 && refY > cy)) ? (refX + 95 * scale) : (refX - 95 * scale);
-                        targetCenterY = refY;
+                        targetCenterY = refY - 20;
                     }
                     deckPile.style.left = `${targetCenterX}px`;
                     deckPile.style.top = `${targetCenterY}px`;
