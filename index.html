@@ -1852,7 +1852,7 @@
                                 isFaceUp: isFaceUp,
                                 html: el.innerHTML,
                                 className: className,
-                                scale: el.closest('#community-area') ? 1 : (this.currentScale || 1)
+                                scale: this.currentScale || 1
                             };
                         });
                         this.customDeckTarget = { uid: oldDealerUid, zone: 'idle' };
@@ -2316,8 +2316,7 @@
                                 fCard.className = "card card-back absolute z-50 ghost-card";
                                 fCard.style.left = `${deckX}px`;
                                 fCard.style.top = `${deckY}px`;
-                                let fScale = t.slot ? 1 : scale;
-                                fCard.style.transform = `translate(-50%, -50%) scale(${fScale})`;
+                                fCard.style.transform = `translate(-50%, -50%) scale(${scale})`;
                                 fCard.style.transition = "left 0.3s ease-out, top 0.3s ease-out";
                                 container.appendChild(fCard);
                                 setTimeout(() => {
@@ -2328,11 +2327,11 @@
                                 setTimeout(() => {
                                     if (t.isFaceUp) {
                                         fCard.style.transition = "transform 0.15s linear";
-                                        fCard.style.transform = `translate(-50%, -50%) scale(${fScale}) rotateY(90deg)`;
+                                        fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(90deg)`;
                                         setTimeout(() => {
                                             fCard.className = t.realCard.className + " absolute z-50 ghost-card";
                                             fCard.innerHTML = t.realCard.innerHTML;
-                                            fCard.style.transform = `translate(-50%, -50%) scale(${fScale}) rotateY(0deg)`;
+                                            fCard.style.transform = `translate(-50%, -50%) scale(${scale}) rotateY(0deg)`;
                                             this.sound.playCardFlip();
                                             setTimeout(() => {
                                                 t.realCard.style.opacity = '1';
@@ -2384,7 +2383,7 @@
                     const scale = this.currentScale || 1;
                     foldGhostCards.forEach((c, k) => {
                         const g = document.createElement("div");
-                        g.className = c.className.replace(/z-\d+/g, '') + " absolute z-20 ghost-card";
+                        g.className = c.className.replace(/z-\d+/g, '') + " absolute z-10 ghost-card";
                         g.style.left = `${c.x}px`;
                         g.style.top = `${c.y}px`;
                         g.style.transform = `translate(-50%, -50%) scale(${scale})`;
@@ -2447,6 +2446,11 @@
                     radiusX = 0.4;
                 }
                 this.currentScale = scale;
+                const commCards = document.getElementById("community-cards");
+                if (commCards) {
+                    commCards.style.transform = `scale(${scale})`;
+                    commCards.style.transformOrigin = "center center";
+                }
                 const rx = w * radiusX;
                 const ry = h * radiusY;
                 const activeSeatIds = new Set();
