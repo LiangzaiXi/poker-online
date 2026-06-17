@@ -1840,33 +1840,42 @@
                 }
                 if (this.frozenTableState && oldState && ["log_phase_flop", "log_phase_turn", "log_phase_river", "showdown_flip"].includes(dealType)) {
                     let activeUid = oldState.playerOrder[oldState.currentPlayerIndex];
-                    if (activeUid) {
-                        let lastActionChipsDeducted = state.pot - oldState.pot;
-                        if (lastActionChipsDeducted < 0) lastActionChipsDeducted = 0;
-                        this.frozenTableState.pot = oldState.pot + lastActionChipsDeducted;
-                        this.frozenTableState.playerOrder.forEach(uid => {
-                            if (this.frozenTableState.players[uid] && oldState.players[uid]) {
-                                if (uid === activeUid) {
-                                    this.frozenTableState.players[uid].chips = oldState.players[uid].chips - lastActionChipsDeducted;
-                                    this.frozenTableState.players[uid].currentBet = oldState.players[uid].currentBet + lastActionChipsDeducted;
-                                    if (this.frozenTableState.players[uid].chips === 0 && lastActionChipsDeducted > 0) {
-                                        this.frozenTableState.players[uid].status = "status_all_in";
-                                    } else if (state.players[uid].folded && !oldState.players[uid].folded) {
-                                        this.frozenTableState.players[uid].status = "status_fold";
-                                    } else if (lastActionChipsDeducted === 0) {
-                                        this.frozenTableState.players[uid].status = "status_check";
-                                    } else if (this.frozenTableState.players[uid].currentBet === oldState.currentMaxBet) {
-                                        this.frozenTableState.players[uid].status = "status_call";
+                    if (dealType === "showdown_flip") {
+                        if (activeUid) {
+                            let netDeducted = state.pot - oldState.pot;
+                            if (netDeducted < 0) netDeducted = 0;
+                            this.frozenTableState.pot = oldState.pot + netDeducted;
+                            this.frozenTableState.playerOrder.forEach(uid => {
+                                if (this.frozenTableState.players[uid] && oldState.players[uid]) {
+                                    if (uid === activeUid) {
+                                        this.frozenTableState.players[uid].chips = oldState.players[uid].chips - netDeducted;
+                                        this.frozenTableState.players[uid].currentBet = oldState.players[uid].currentBet + netDeducted;
+                                        this.frozenTableState.players[uid].status = (this.frozenTableState.players[uid].chips === 0 && netDeducted > 0) ? "status_all_in" : (this.frozenTableState.players[uid].currentBet === oldState.currentMaxBet ? "status_call" : "status_raise");
                                     } else {
-                                        this.frozenTableState.players[uid].status = "status_raise";
+                                        this.frozenTableState.players[uid].chips = oldState.players[uid].chips;
+                                        this.frozenTableState.players[uid].currentBet = oldState.players[uid].currentBet;
+                                        this.frozenTableState.players[uid].status = oldState.players[uid].status;
                                     }
+                                }
+                            });
+                        }
+                    } else {
+                        let totalDeducted = 0;
+                        this.frozenTableState.playerOrder.forEach(uid => {
+                            if (this.frozenTableState.players[uid] && oldState.players[uid] && state.players[uid]) {
+                                let deducted = oldState.players[uid].chips - state.players[uid].chips;
+                                if (deducted < 0) deducted = 0;
+                                totalDeducted += deducted;
+                                this.frozenTableState.players[uid].chips = state.players[uid].chips;
+                                this.frozenTableState.players[uid].currentBet = oldState.players[uid].currentBet + deducted;
+                                if (uid === activeUid && deducted > 0) {
+                                    this.frozenTableState.players[uid].status = (state.players[uid].chips === 0) ? "status_all_in" : (this.frozenTableState.players[uid].currentBet === oldState.currentMaxBet ? "status_call" : "status_raise");
                                 } else {
-                                    this.frozenTableState.players[uid].chips = oldState.players[uid].chips;
-                                    this.frozenTableState.players[uid].currentBet = oldState.players[uid].currentBet;
-                                    this.frozenTableState.players[uid].status = oldState.players[uid].status;
+                                    this.frozenTableState.players[uid].status = state.players[uid].status || oldState.players[uid].status;
                                 }
                             }
                         });
+                        this.frozenTableState.pot = oldState.pot + totalDeducted;
                     }
                 }
                 const newChats = state.chatMessages || [];
